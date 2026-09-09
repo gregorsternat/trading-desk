@@ -1,0 +1,2215 @@
+//@version=3
+// Price Action Toolkit
+//
+// One indicator, every price-action concept: market structure (BOS / CHoCH /
+// CHoCH+ on an internal and a swing horizon, pivot letters, candle tint),
+// order blocks with a buy / sell split and breakers, pivot trend lines and
+// chart patterns, equal highs / lows, wick sweeps (liquidity grabs),
+// imbalances (FVG / volume imbalance / opening gap), premium / discount range
+// zones, and an Order Flow tab that grades those objects with the sided
+// volume and footprint ladder this chart carries (see the ORDER FLOW section:
+// every grade is an annotation on an object the classic rules already draw,
+// and stands down silently where a series is empty). A user adds this one
+// script and gets everything; each feature family is a tab in the settings
+// with its own display toggle, and every feature evaluates on bar close.
+//
+// Everything is built on ONE primitive, computed once per bar and shared:
+//
+//   Swing detector (leg state machine). For a lookback L, the bar L back is a
+//   swing high when its high strictly clears the highs of every one of the L
+//   bars that followed it, a swing low when its low strictly undercuts all of
+//   their lows (a same-bar tie resolves to the high). The leg flips on that
+//   bar, so swings confirm exactly L bars late and strictly alternate. Two
+//   instances always run: the internal lookback (default 5) and the swing
+//   lookback (default 50). The order-block detector rides the internal
+//   instance at its default lookback (or the swing instance, or a third
+//   instance when its own lookback differs from both). Consumers: structure
+//   (both horizons), wick sweeps (internal), order blocks, range zones and
+//   the range extremes (swing).
+//
+//   ATR(200): a Wilder average of true range, hardcoded 200, seeded with the
+//   cumulative average over the first 200 bars so a cold start converges
+//   instead of waiting. Consumers: order-block height cap, equal-level
+//   tolerance (0.1 x), trend-line zones (0.25 x), pattern zones (0.5 x),
+//   minimum gap height.
+//
+// Equal highs / lows (two-sided 3- or 15-bar fractal pivots), trend lines
+// (two-sided 2-bar wick pivots) and patterns (symmetric body pivots at 2 x
+// scale) are different pivot definitions and keep their own small detectors;
+// they do not ride the leg machine.
+//
+// Original implementation. Every feature is covered by a deterministic test harness on two
+// engine versions.
+//
+// Presentation: what is drawn where and what a tag says follows the usual
+// charting convention for these concepts; the palette, line grammar and
+// shapes are ours. One palette across the toolkit (mint / raspberry internal
+// structure, azure / amber swing structure, periwinkle / tangerine order
+// blocks with lilac / gold breakers, steel-blue / soft-red trend lines, sage /
+// clay pattern lines, orchid / periwinkle equal levels, jade / coral sweeps,
+// sky / blush gaps, raspberry / slate / mint zones), one line grammar
+// (dashed = a broken level, a midpoint line or a retired line; dotted = a
+// companion edge or an equal-level connector; solid = a live line or a box
+// edge), translucent fills everywhere, tiny text tags placed off the line
+// they annotate, two-tier pivot chips (HH / LL filled, LH / HL outlined),
+// wick pockets on sweep bars, and bounded drawing history everywhere. Every
+// extra marker sits behind its own toggle, off by default (the plain look):
+// structure break dots + order-block pins / breaker crosses (Event dots and
+// pins), sweep tip triangles + swept-level rails (Sweep markers), gap fill
+// crosses (Fill marks), trend-line break crosses (Line break marks), the
+// source-candle highlight. Series markers cost no drawings.
+//
+// Alpha lives in the color string (opacity(hex, percent) -> rgba): the chart
+// renderer reads a drawing's color / backgroundColor verbatim, ignores a
+// box's fillOpacity, and clamps the generic opacity prop to 0..1, so percent
+// values passed as opacity render fully opaque. Linefills take their alpha as
+// opacity on the 0..1 scale (the engine's own default is 0.25).
+//
+// Drawing budget (engine cap: 500 per kind, shared by every feature here).
+// Every history is a FIFO that deletes its oldest drawing BEFORE creating a
+// new one, so the caps below are hard peaks, not targets. N = Blocks kept on
+// chart (the newest N blocks over both sides, <= 20):
+//   labels: structure tags 100 internal + 30 swing, pivot letters 300 - 2N
+//           (290 at the default 5, 260 at the cap), equal-level tags 50, OB
+//           readouts N (<= 20), zone tags 3, range-extreme tags 2  -> <= 485
+//   lines:  structure 100 + 30, equal-level connectors 50, swept-level rails
+//           60, OB midpoint lines N (<= 20), trend lines 4 x kept + 4
+//           (<= 84), pattern lines 4, gap midpoint lines 120 (the newest
+//           120 live gaps), range extremes 2                    -> <= 470
+//   boxes:  order blocks 5N (body, breaker segment, two split bars, optional
+//           source-candle highlight; <= 100), gaps 200 (the buffer), zones 3
+//                                                              -> <= 303
+//   linefills: trend lines 2 x kept + 2 (<= 42), pattern 2      -> <= 44
+// The Order Flow grades add no drawings: they change a tag's text / tone, a
+// gap box's edge / fill / tooltip, or the zone levels, and add series markers.
+// Data sources: candles (1 slot) + the footprint ladder (1) = 2 weighted
+// slots; the ladder is fetched only while an Order Flow toggle is on, and its
+// per-bar buy / sell totals stand in for the taker split (same tape, one
+// source, an O(1) read: a buy_sell_volume read costs O(history) per bar in
+// this engine). Engine time: the break grade (on by default) reads three
+// accessors per bar; the composite ladder behind the gap grade and the
+// value-area zones (both opt-in) walks every footprint bucket twice per bar,
+// about 0.1 ms per bar measured, which is why those two ship off.
+define(title="Price Action Toolkit", position="onchart", axis=false);
+
+timeseries d = ohlcv(symbol=currentSymbol, exchange=currentExchange);
+
+// ============================================================================
+// SETTINGS (one tab per feature family; every feature has its display toggle)
+// ============================================================================
+// Alerts: every alertcondition is declared unconditionally (the bell menu
+// lists them all); the chart drops the per-bar alert ledger before it
+// validates a run, so declaring them costs no validator budget.
+
+// ---------------------------------------------------------------- Structure --
+var iDisplay = input(name="internalDisplay", type="select", defaultValue="All",
+  options=["All", "BOS", "CHoCH (All)", "CHoCH+", "CHoCH", "None"],
+  label="Internal structure", group="Structure/Internal (short horizon)",
+  tooltip="Which internal structure events to draw: BOS (the trend carries on through its last swing), CHoCH (the trend flips through the last opposing swing), CHoCH+ (a flip the leg before it already hinted at). Alerts fire whatever is drawn.");
+var iLen = input(name="internalLength", type="int", defaultValue=5, min=2, max=49, step=1,
+  label="Internal lookback", group="Structure/Internal (short horizon)",
+  tooltip="Bars a high or low must stay unbeaten to become an internal swing. The same lookback confirms the pivot letters and arms the wick sweeps.");
+var iBull = input(name="internalBullColor", type="color", defaultValue="#3dd68c",
+  label="Internal up", group="Structure/Internal (short horizon)",
+  tooltip="Lines, tags and candle tint of bullish internal events.");
+var iBear = input(name="internalBearColor", type="color", defaultValue="#f4506d",
+  label="Internal down", group="Structure/Internal (short horizon)",
+  tooltip="Lines, tags and candle tint of bearish internal events.");
+
+var sDisplay = input(name="swingDisplay", type="select", defaultValue="None",
+  options=["All", "BOS", "CHoCH (All)", "CHoCH+", "CHoCH", "None"],
+  label="Swing structure", group="Structure/Swing (long horizon)",
+  tooltip="Which swing structure events to draw, with the same BOS / CHoCH / CHoCH+ grammar on the long horizon. Off by default; alerts fire either way.");
+var sLen = input(name="swingLength", type="int", defaultValue=50, min=50, max=100, step=1,
+  label="Swing lookback", group="Structure/Swing (long horizon)",
+  tooltip="Bars a high or low must stay unbeaten to become a swing. The same swings anchor the range zones and the range extremes.");
+var sBull = input(name="swingBullColor", type="color", defaultValue="#4f9cf9",
+  label="Swing up", group="Structure/Swing (long horizon)",
+  tooltip="Lines and tags of bullish swing events; also the low side of the range extremes.");
+var sBear = input(name="swingBearColor", type="color", defaultValue="#f59e0b",
+  label="Swing down", group="Structure/Swing (long horizon)",
+  tooltip="Lines and tags of bearish swing events; also the high side of the range extremes.");
+
+var showMarks = input(name="showSwingPoints", type="boolean", defaultValue=false,
+  label="Pivot letters", group="Structure/Extras",
+  tooltip="Letter each confirmed internal pivot: HH / LH above tops, LL / HL below bottoms. A letter appears at its pivot once the pivot confirms, Internal lookback bars later.");
+var colorCandles = input(name="colorCandles", type="boolean", defaultValue=false,
+  label="Tint candles by trend", group="Structure/Extras",
+  tooltip="Paint candles with the internal trend state: full tint after a BOS, soft tint after a CHoCH or CHoCH+.");
+var showStrongWeak = input(name="showStrongWeakHL", type="boolean", defaultValue=false,
+  label="Range extremes", group="Structure/Extras",
+  tooltip="Level lines from the trailing swing high and swing low to 20 bars past the last bar, each tagged with that bar's share of the volume traded on the two extreme bars: the larger share reads Strong, the smaller Weak.");
+
+// ------------------------------------------------------------- Order Blocks --
+var obShow = input(name="showOrderBlocks", type="boolean", defaultValue=true,
+  label="Draw order blocks", group="Order Blocks/Detection",
+  tooltip="Find and draw swing-anchored order blocks: the last opposing candle before a close breaks the armed swing. Off = nothing computed, no boxes, no block alerts.");
+var obShowLast = input(name="obShowLast", type="int", defaultValue=5, min=2, max=20, step=1,
+  label="Blocks kept on chart", group="Order Blocks/Detection",
+  tooltip="How many of the newest blocks stay drawn, bullish and bearish counted together. Older blocks keep firing alerts without being drawn.");
+var obBullColor = input(name="obBullColor", type="color", defaultValue="#7c9cff",
+  label="Bullish block color", group="Order Blocks/Detection",
+  tooltip="Fill, border, midpoint line and readout of bullish blocks.");
+var obBearColor = input(name="obBearColor", type="color", defaultValue="#ff8a5c",
+  label="Bearish block color", group="Order Blocks/Detection",
+  tooltip="Fill, border, midpoint line and readout of bearish blocks.");
+var obLength = input(name="obLength", type="int", defaultValue=5, min=2, max=50, step=1,
+  label="Block swing lookback", group="Order Blocks/Detection",
+  tooltip="Lookback of the swing detector that arms the blocks. At the internal (or swing) lookback it shares that detector; larger values give longer-lived blocks.");
+var obMitigation = input(name="obMitigation", type="select", defaultValue="Close",
+  options=["Close", "Wick", "Average"],
+  label="Block is filled when", group="Order Blocks/Detection",
+  tooltip="Close: a candle body closes beyond the block's far edge. Wick: a wick reaches beyond it. Average: a body crosses the block's midpoint.");
+
+var obShowBreakers = input(name="obShowBreakers", type="boolean", defaultValue=false,
+  label="Keep filled blocks as breakers", group="Order Blocks/Breakers",
+  tooltip="A filled block stays on the chart as a breaker (hollow, dashed) until a close passes its near edge. Off = filled blocks are removed.");
+var obBullBrkColor = input(name="obBullBreakerColor", type="color", defaultValue="#c4b5fd",
+  label="Bullish breaker color", group="Order Blocks/Breakers",
+  tooltip="Outline of bullish breakers.");
+var obBearBrkColor = input(name="obBearBreakerColor", type="color", defaultValue="#fcd34d",
+  label="Bearish breaker color", group="Order Blocks/Breakers",
+  tooltip="Outline of bearish breakers.");
+
+var obShowActivity = input(name="obShowActivity", type="boolean", defaultValue=true,
+  label="Buy / sell split bars", group="Order Blocks/Look",
+  tooltip="Two bars inside each block, both starting at its origin: the up-candle share of the leg's volume fills the upper half, the down-candle share the lower half, each as long as its share of the block's age. Estimated from candle direction.");
+var obShowMetrics = input(name="obShowMetrics", type="boolean", defaultValue=true,
+  label="Volume readout", group="Order Blocks/Look",
+  tooltip="Text one bar past the last bar, on the midpoint line, in the form 10.973K (42%): the leg's volume (from the swing pivot to the break bar) and its share of the volume of the blocks kept on chart, skipped overlaps included.");
+var obShowMid = input(name="obShowMidLine", type="boolean", defaultValue=true,
+  label="Midpoint line", group="Order Blocks/Look",
+  tooltip="Dashed line at the block's midpoint (the block's average fill level) from its origin to one bar past the last bar, where the readout sits.");
+var obHideOverlap = input(name="obHideOverlap", type="boolean", defaultValue=true,
+  label="Skip overlapping blocks", group="Order Blocks/Look",
+  tooltip="Do not draw a block whose range overlaps a newer drawn block. Display only: skipped blocks keep firing alerts.");
+var obOpacity = input(name="obOpacity", type="int", defaultValue=18, min=0, max=100, step=1,
+  label="Body fill (%)", group="Order Blocks/Look",
+  tooltip="Fill strength of the block body. Breaker segments stay hollow.");
+var obShowOriginCap = input(name="obShowOriginCap", type="boolean", defaultValue=false,
+  label="Highlight the source candle", group="Order Blocks/Look",
+  tooltip="Tint the source candle's span inside each block 40 points stronger than the body.");
+
+// --------------------------------------------------------------- Imbalances --
+var showImbalances = input(name="showImbalances", type="boolean", defaultValue=false,
+  label="Draw imbalances", group="Imbalances/Gaps",
+  tooltip="Find and draw price gaps of the chosen type as boxes. Gap alerts fire only while this is on.");
+var imbalanceType = input(name="imbalanceType", type="select", defaultValue="FVG",
+  options=["FVG", "Volume Imbalance", "Opening Gap"],
+  label="Gap type", group="Imbalances/Gaps",
+  tooltip="FVG: a three-candle wick gap whose middle candle closed beyond it. Volume Imbalance: two adjacent candles whose bodies do not overlap while their wicks do. Opening Gap: two adjacent candles whose wicks do not overlap at all.");
+var imbBullColor = input(name="imbBullColor", type="color", defaultValue="#56ccf2",
+  label="Bullish gap color", group="Imbalances/Gaps",
+  tooltip="Box, midpoint line and fill mark of bullish (demand-side) gaps.");
+var imbBearColor = input(name="imbBearColor", type="color", defaultValue="#ff8fab",
+  label="Bearish gap color", group="Imbalances/Gaps",
+  tooltip="Box, midpoint line and fill mark of bearish (supply-side) gaps.");
+var imbMitigation = input(name="imbMitigation", type="select", defaultValue="Close",
+  options=["Close", "Wick", "Average", "None"],
+  label="Gap is filled when", group="Imbalances/Gaps",
+  tooltip="Close: a candle body pushes through the gap's far edge. Wick: a wick reaches through it. Average: a body crosses the midpoint. None: gaps are never removed.");
+var imbExtend = input(name="imbExtend", type="int", defaultValue=10, min=1, max=500, step=1,
+  label="Extend boxes right (bars)", group="Imbalances/Gaps",
+  tooltip="Bars each gap box runs past its detection bar. Display only.");
+var imbThreshold = input(name="imbThreshold", type="float", defaultValue=0, min=0, max=100, step=0.5,
+  label="Minimum gap height (x ATR)", group="Imbalances/Gaps",
+  tooltip="0 keeps every gap. Above 0 a gap must be taller than this many ATR(200) to be kept; the ATR is our scale, so the filter is ours.");
+var imbShowMitigation = input(name="imbShowMitigation", type="boolean", defaultValue=false,
+  label="Fill marks", group="Imbalances/Gaps",
+  tooltip="Cross at the breached edge on the bar that filled a gap.");
+
+// ---------------------------------------------------------------- Liquidity --
+var showEqhl = input(name="showEqhl", type="boolean", defaultValue=false,
+  label="Equal highs / lows", group="Liquidity/Equal levels",
+  tooltip="Connect two consecutive same-side pivots within 0.1 x ATR(200) of each other and tag them EQH / EQL. Confirms 3 bars late (narrow pivots) or 15 bars late (wide pivots) and is drawn back at the pivots.");
+var eqhlTerm = input(name="eqhlTerm", type="select", defaultValue="Short-Term",
+  options=["Short-Term", "Long-Term"],
+  label="Pivot width", group="Liquidity/Equal levels",
+  tooltip="Short-Term uses 3-bar pivots (more, tighter pools); Long-Term uses 15-bar pivots (fewer, larger pools).");
+var eqhColor = input(name="eqhColor", type="color", defaultValue="#f0a6ff",
+  label="Equal highs color", group="Liquidity/Equal levels",
+  tooltip="Connector and tag of equal highs (resting sell-side liquidity).");
+var eqlColor = input(name="eqlColor", type="color", defaultValue="#9ecbff",
+  label="Equal lows color", group="Liquidity/Equal levels",
+  tooltip="Connector and tag of equal lows (resting buy-side liquidity).");
+
+var showGrabs = input(name="showGrabs", type="boolean", defaultValue=false,
+  label="Wick sweeps (liquidity grabs)", group="Liquidity/Wick sweeps",
+  tooltip="Color the wick of a bar that sweeps through the latest internal swing level while its body stays on the other side.");
+var bullGrabColor = input(name="bullGrabColor", type="color", defaultValue="#19c6a9",
+  label="Bullish sweep color", group="Liquidity/Wick sweeps",
+  tooltip="A wick below a swing low with the body held above it (demand-side sweep).");
+var bearGrabColor = input(name="bearGrabColor", type="color", defaultValue="#ff6b8a",
+  label="Bearish sweep color", group="Liquidity/Wick sweeps",
+  tooltip="A wick above a swing high with the body held below it (supply-side sweep).");
+var showGrabMarkers = input(name="showGrabMarkers", type="boolean", defaultValue=false,
+  label="Sweep markers", group="Liquidity/Wick sweeps",
+  tooltip="On top of the colored wick: a triangle at the wick's tip and a dotted rail along the swept level from the swing it came from.");
+
+var tlShow = input(name="showTrendlines", type="boolean", defaultValue=false,
+  label="Pivot trend lines", group="Liquidity/Trend lines",
+  tooltip="Fit support and resistance lines through wick pivots and keep the ones price respected. Off = nothing computed, no lines, no line alerts.");
+var tlShowLast = input(name="tlShowLast", type="int", defaultValue=5, min=1, max=20, step=1,
+  label="Lines kept per side", group="Liquidity/Trend lines",
+  tooltip="Newest lines kept per side (support and resistance counted separately). Display only.");
+var tlBullColor = input(name="tlBullColor", type="color", defaultValue="#60a5fa",
+  label="Support line color", group="Liquidity/Trend lines",
+  tooltip="Support (bullish) lines and their zone.");
+var tlBearColor = input(name="tlBearColor", type="color", defaultValue="#f87171",
+  label="Resistance line color", group="Liquidity/Trend lines",
+  tooltip="Resistance (bearish) lines and their zone.");
+var tlShowBreaks = input(name="tlShowBreaks", type="boolean", defaultValue=false,
+  label="Line break marks", group="Liquidity/Trend lines",
+  tooltip="Cross on the bar whose close breaks a line, placed on the line's projected value. The line turning dashed is the signal either way.");
+
+var patShow = input(name="showPatterns", type="boolean", defaultValue=false,
+  label="Chart patterns", group="Liquidity/Patterns",
+  tooltip="Classify the latest four body pivots as a triangle, wedge or broadening wedge and draw its two lines; with no fit, draw general support / resistance instead. Off = nothing computed, no table.");
+var patPeriodSel = input(name="patternPeriod", type="select", defaultValue="5",
+  options=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+  label="Pattern scale", group="Liquidity/Patterns",
+  tooltip="Higher values return longer-lived patterns (pivot half-width = 2 x scale bars).");
+var patLowerColor = input(name="patternLowerColor", type="color", defaultValue="#7bc8a4",
+  label="Lower line color", group="Liquidity/Patterns",
+  tooltip="The line through the two pivot lows and its zone.");
+var patUpperColor = input(name="patternUpperColor", type="color", defaultValue="#d98c5f",
+  label="Upper line color", group="Liquidity/Patterns",
+  tooltip="The line through the two pivot highs and its zone.");
+var patShowZones = input(name="showPatternZones", type="boolean", defaultValue=true,
+  label="Pattern zones", group="Liquidity/Patterns",
+  tooltip="Shade 0.5 x ATR(200) outside each pattern line.");
+var showPatternDashboard = input(name="showPatternDashboard", type="boolean", defaultValue=false,
+  label="Pattern table", group="Liquidity/Patterns",
+  tooltip="Small table naming the detected pattern and the state of the support / resistance lines. Corner and text size live under Style.");
+
+// -------------------------------------------------------------- Range Zones --
+var showZones = input(name="showZones", type="boolean", defaultValue=false,
+  label="Premium / discount bands", group="Range Zones/Bands",
+  tooltip="Three labeled bands at the right edge over the trailing swing range: premium around the range high, equilibrium around its middle, discount around the range low, each 5% of the range tall either side of its anchor. Anchored by the swing lookback.");
+var premiumColor = input(name="premiumColor", type="color", defaultValue="#f4506d",
+  label="Premium color", group="Range Zones/Bands",
+  tooltip="Band and tag of the premium slice (top of the range: price is expensive).");
+var equilibriumColor = input(name="equilibriumColor", type="color", defaultValue="#8a93a6",
+  label="Equilibrium color", group="Range Zones/Bands",
+  tooltip="Band and tag of the equilibrium slice around the middle of the range.");
+var discountColor = input(name="discountColor", type="color", defaultValue="#3dd68c",
+  label="Discount color", group="Range Zones/Bands",
+  tooltip="Band and tag of the discount slice (bottom of the range: price is cheap).");
+var showZoneLevels = input(name="showZoneLevels", type="boolean", defaultValue=false,
+  label="Band levels as lines", group="Range Zones/Bands",
+  tooltip="Also plot the range high / low and the four band boundaries as thin dotted lines over the whole history, so the levels show in the data window. Off by default: the bands are the display.");
+
+// --------------------------------------------------------------- Order Flow --
+// Grades read off the per-bar footprint ladder (per-price buy / sell volume;
+// its totals are the taker split). Each one annotates an object the classic rules already
+// draw and stands down silently, to the plain drawing, wherever a series is
+// empty (US equities carry side-agnostic volume only; a venue without a
+// footprint ladder grades no gap and keeps the classic bands). The break
+// grade is on by default; the gap grade and the value-area zones are opt-in
+// (the composite ladder they share costs about 0.1 ms per bar).
+var ofBreakGrade = input(name="ofBreakGrade", type="boolean", defaultValue=true,
+  label="Grade breaks by participation", group="Order Flow/Structure breaks",
+  tooltip="Reads the break bar's taker buy / sell split and the footprint beyond the broken level. A break carried by flow in its direction keeps its plain tag; a break on thin or opposing flow gets a 'thin' suffix and a dimmer tag; a CHoCH whose break bar traded against it gets a 'run' suffix (a likely stop run rather than a reversal). The tag's tooltip carries the numbers. Graded when the break bar closes (a break on the live bar keeps its plain tag until then). Reads the footprint ladder (its per-bar buy / sell totals give the delta share): crypto spot and perps; on US equities the tags stay plain.");
+var ofFlowThreshold = input(name="ofFlowThreshold", type="int", defaultValue=10, min=0, max=60, step=1,
+  label="Participation threshold (%)", group="Order Flow/Structure breaks",
+  tooltip="Delta share of the break bar, (buy - sell) / (buy + sell), that counts as participation in the break's direction; the same share against it marks a run. Our scale.");
+var ofGapGrade = input(name="ofGapGrade", type="boolean", defaultValue=false,
+  label="Grade gaps by the volume shelf", group="Order Flow/Imbalances",
+  tooltip="At creation each gap is compared with the trailing footprint ladder: a gap over a thin shelf (every cell inside it under half the ladder's typical cell) is tagged fast fill and drawn with a dashed edge; a gap overlapping a high-volume node (a cell at least 1.5 x the typical cell) is tagged sticky and drawn with a stronger fill. A fill on flow in the fill's direction adds a mark (behind Fill marks) and an alert. Reads the footprint ladder: crypto venues; on US equities the boxes stay plain. Off by default: keeping the composite ladder costs about a tenth of a millisecond per bar of script time (a fifth of the toolkit's own), so switch it on when you trade the gaps.");
+var ofLadderLookback = input(name="ofLadderLookback", type="int", defaultValue=200, min=50, max=500, step=10,
+  label="Ladder lookback (bars)", group="Order Flow/Footprint ladder",
+  tooltip="Bars of footprint history summed into the composite ladder (one cell per footprint bucket) that grades gaps and anchors the value area. Shared by both.");
+var ofValueZones = input(name="ofValueZones", type="boolean", defaultValue=false,
+  label="Equilibrium = value area", group="Order Flow/Range zones",
+  tooltip="Redraws the premium / discount bands around value: equilibrium becomes the value area (the cells around the ladder's point of control that hold 70% of its volume inside the trailing swing range), premium the range above it, discount the range below it. Off = the classic mid-range lattice. Reads the footprint ladder; where it is empty the classic bands stay.");
+
+// -------------------------------------------------------------------- Style --
+var internalLabelSize = input(name="internalLabelSize", type="select", defaultValue="Tiny",
+  options=["Tiny", "Small", "Normal"],
+  label="Internal tag size", group="Style/Text",
+  tooltip="Text size of internal structure tags and pivot letters.");
+var swingLabelSize = input(name="swingLabelSize", type="select", defaultValue="Small",
+  options=["Tiny", "Small", "Normal"],
+  label="Swing tag size", group="Style/Text",
+  tooltip="Text size of swing structure tags and the range-extreme tags.");
+var eqhlSize = input(name="eqhlSize", type="select", defaultValue="Tiny",
+  options=["Tiny", "Small", "Normal"],
+  label="Equal-level tag size", group="Style/Text",
+  tooltip="Text size of the EQH / EQL tags.");
+var obMetricsSize = input(name="obMetricsSize", type="select", defaultValue="Small",
+  options=["Tiny", "Small", "Normal", "Auto"],
+  label="Block readout size", group="Style/Text",
+  tooltip="Text size of the order-block volume readout (Auto = Small).");
+var structuresTheme = input(name="structuresTheme", type="select", defaultValue="Colored",
+  options=["Colored", "Monochrome"],
+  label="Structure palette", group="Style/Palette",
+  tooltip="Colored: structure lines, tags, break dots and pivot letters use the up / down hues. Monochrome: one neutral color for all of them (candle tint keeps its hues).");
+var dashLocation = input(name="dashboardLocation", type="select", defaultValue="Top Right",
+  options=["Top Right", "Bottom Right", "None"],
+  label="Pattern table corner", group="Style/Table",
+  tooltip="Where the pattern table sits. None hides it.");
+var dashSize = input(name="dashboardSize", type="select", defaultValue="Small",
+  options=["Tiny", "Small", "Normal", "Large"],
+  label="Pattern table text", group="Style/Table",
+  tooltip="Text size of the pattern table.");
+var showEventMarkers = input(name="showEventMarkers", type="boolean", defaultValue=false,
+  label="Event dots and pins", group="Style/Markers",
+  tooltip="Series markers on the bar an event fired: a dot on the broken level for structure breaks (small internal, larger swing), a square on the far edge of a new order block, a cross at a block's midpoint when it turns into a breaker. Off by default: the lines, tags and boxes already show these events.");
+
+// ============================================================================
+// SHARED MODEL (computed once per bar, consumed by every feature)
+// ============================================================================
+persist barNo = -1;
+barNo = barNo + 1;
+
+// Style resolution for the General Styling knobs.
+func labelSize(sel) {
+  return sel == "Tiny" ? 8 : (sel == "Small" ? 10 : 12);
+}
+var iTagSize = labelSize(internalLabelSize);
+var sTagSize = labelSize(swingLabelSize);
+var eqTagSize = labelSize(eqhlSize);
+var obChipSize = obMetricsSize == "Auto" ? 10 : labelSize(obMetricsSize);
+var monoTheme = structuresTheme == "Monochrome";
+var neutralColor = "#8a93a6";
+var iBullDraw = monoTheme ? neutralColor : iBull;
+var iBearDraw = monoTheme ? neutralColor : iBear;
+var sBullDraw = monoTheme ? neutralColor : sBull;
+var sBearDraw = monoTheme ? neutralColor : sBear;
+
+// ATR(200): Wilder RMA of true range, cumulative-seeded (running sum over the
+// first 200 bars) so a cold start converges instead of waiting.
+persist atrSum = 0;
+persist atr200 = 0;
+var tr0 = d.high[0] - d.low[0];
+if (barNo > 0) {
+  tr0 = max(d.high[0] - d.low[0], max(abs(d.high[0] - d.close[1]), abs(d.low[0] - d.close[1])));
+}
+if (barNo < 200) {
+  atrSum = atrSum + tr0;
+  atr200 = atrSum / (barNo + 1);
+} else {
+  atr200 = (atr200 * 199 + tr0) / 200;
+}
+// Text tags sit off the level they annotate by this much (above a bullish
+// level, below a bearish one): a price offset that scales with the market,
+// since drawings cannot be offset in pixels.
+var tagLift = 0.4 * atr200;
+// Bar time by bar index, for tags placed at the midpoint bar of a segment.
+persist tHist = [];
+tHist.push(d.time[0]);
+func midBarT(fromBar, toBar) {
+  return tHist[floor((fromBar + toBar) / 2)];
+}
+
+// Swing detector instances. Rolling windows are TA builtins, so they stay
+// unconditional; the leg state lives in one persist array indexed by
+// instance (0 internal, 1 swing, 2 order-block length when it differs).
+// swingStep returns 1 on a newly registered swing HIGH, 2 on a swing LOW,
+// 0 otherwise; the caller reads the pivot's value and time at offset len.
+var iWinHigh = highest(source=d.high, period=iLen);
+var iWinLow = lowest(source=d.low, period=iLen);
+var sWinHigh = highest(source=d.high, period=sLen);
+var sWinLow = lowest(source=d.low, period=sLen);
+var obWinHigh = highest(source=d.high, period=obLength);
+var obWinLow = lowest(source=d.low, period=obLength);
+persist swLeg = [2, 2, 2];
+func swingStep(id, candHigh, candLow, winHigh, winLow) {
+  var next = swLeg[id];
+  if (candHigh > winHigh) { next = 0; }
+  else {
+    if (candLow < winLow) { next = 1; }
+  }
+  var evt = 0;
+  if (next == 0 && swLeg[id] != 0) { evt = 1; }
+  if (next == 1 && swLeg[id] != 1) { evt = 2; }
+  swLeg[id] = next;
+  return evt;
+}
+var iEvt = 0;
+var sEvt = 0;
+var obEvt = 0;
+if (barNo >= iLen) { iEvt = swingStep(0, d.high[iLen], d.low[iLen], iWinHigh, iWinLow); }
+if (barNo >= sLen) { sEvt = swingStep(1, d.high[sLen], d.low[sLen], sWinHigh, sWinLow); }
+if (obShow && barNo >= obLength) {
+  if (obLength == iLen) { obEvt = iEvt; }
+  else {
+    if (obLength == sLen) { obEvt = sEvt; }
+    else { obEvt = swingStep(2, d.high[obLength], d.low[obLength], obWinHigh, obWinLow); }
+  }
+}
+
+// ============================================================================
+// ORDER FLOW: footprint reads + composite ladder (shared by the grades)
+// ============================================================================
+// The footprint ladder is fetched only while an Order Flow toggle is on; its
+// per-bar buy / sell totals give the bar's delta share (the same trades the
+// taker split reports). Per bar, three O(1) accessor reads (totals, bucket
+// count) and a handle on the bar's row (the break grade walks its buckets
+// on event bars only), plus, while a ladder consumer is on, the composite
+// ladder = one cell per footprint bucket, volume summed over the last Ladder
+// lookback bars: a dense array over the bucket grid (ladBase = the cell key
+// of index 0), this bar's buckets added and the buckets of the bar leaving
+// the window (read back off the series' own history, vp[lookback]) taken
+// out, trimmed at both ends. The two bucket loops are the only per-bucket
+// work in the script and are kept to four statements each. Every read
+// degrades to "no data" (na / 0) when a series is empty, and every consumer
+// falls back to the plain behavior on "no data".
+var ofAny = ofBreakGrade || ofGapGrade || ofValueZones;
+var ofLadderOn = ofGapGrade || ofValueZones;
+var ofThr = ofFlowThreshold / 100;
+var ofHasFlow = false;  // this bar carries a sided split (footprint totals > 0)
+var ofShare = 0;        // (buy - sell) / (buy + sell), -1..1; 0 without data
+var ofRow = [];         // this bar's footprint row [time, [low, high, buy, sell], ...]; the break grade walks it on event bars only
+persist ladStep = 0;    // price per ladder cell (the footprint bucket height)
+persist ladFirstBar = -1; // the bar the grid was learnt on (earlier bars never entered the ladder)
+persist ladBase = 0;    // cell key of ladVol[0]
+persist ladVol = [];    // cell volumes, dense: key = ladBase + index; both ends always hold volume (trimmed every bar)
+var ladStep2 = 0;       // 2 x ladStep: a bucket's cell key = floor((low + high) / ladStep2), the cell its midpoint is in
+// Grow the dense array to hold key; returns its index, or -1 for a stray
+// print thousands of cells off the grid.
+func ladIndex(key) {
+  var lix = -1;
+  if (ladVol.length == 0) { ladBase = key; ladVol.push(0); lix = 0; }
+  else {
+    if (key < ladBase) {
+      if (ladBase - key <= 4000) {
+        for (var lu = ladBase - key; lu > 0; lu = lu - 1) { ladVol.unshift(0); }
+        ladBase = key; lix = 0;
+      }
+    } else {
+      if (key - ladBase - ladVol.length < 4000) {
+        for (var lp = key - ladBase - ladVol.length + 1; lp > 0; lp = lp - 1) { ladVol.push(0); }
+        lix = key - ladBase;
+      }
+    }
+  }
+  return lix;
+}
+if (ofAny) {
+  timeseries vp = source("volume_profile", symbol=currentSymbol, exchange=currentExchange, ticksPerBar=5, currency="USD");
+  var ofTot = vpTotal(vp);
+  var ofDel = vpDelta(vp);
+  var ofNb = vpBucketCount(vp);
+  if (isnum(ofTot) && isnum(ofDel) && ofTot > 0) { ofHasFlow = true; ofShare = ofDel / ofTot; }
+  if (isnum(ofNb) && ofNb > 0) { ofRow = vp[0]; } else { ofNb = 0; }
+  if (ofLadderOn) {
+    if (ladStep == 0 && ofNb > 0) {
+      var ofFb = ofRow[1];
+      if (ofFb[1] > ofFb[0]) { ladStep = ofFb[1] - ofFb[0]; ladFirstBar = barNo; }
+    }
+    if (ladStep > 0) {
+      ladStep2 = 2 * ladStep;
+      // this bar's buckets in: the grid is grown once for the bar's price span
+      // (the min / max over its buckets, whatever their order), then every
+      // bucket lands on its cell with no per-bucket bounds check. A bar whose
+      // span cannot be gridded (thousands of cells off: garbage data) is skipped.
+      if (ofNb > 0) {
+        var ofKLo = floor(vpPriceLow(vp) / ladStep);
+        var ofKHi = floor(vpPriceHigh(vp) / ladStep);
+        if (ladVol.length == 0 || ofKLo < ladBase || ofKHi >= ladBase + ladVol.length) { ladIndex(ofKLo); ladIndex(ofKHi); }
+        if (ofKLo >= ladBase && ofKHi < ladBase + ladVol.length) {
+          for (var ofI = 1; ofI <= ofNb; ofI = ofI + 1) {
+            var ofBk = ofRow[ofI];
+            var ofBv = ofBk[2] + ofBk[3];
+            if (ofBv > 0) { var ofIx = floor((ofBk[0] + ofBk[1]) / ladStep2) - ladBase; ladVol[ofIx] = ladVol[ofIx] + ofBv; }
+          }
+        }
+      }
+      // the bar leaving the window: its buckets, keyed the same way, come back out
+      if (barNo - ofLadderLookback >= ladFirstBar) {
+        var ofOldRow = vp[ofLadderLookback];
+        var ofOldN = ofOldRow.length;
+        var ofLen = ladVol.length;
+        for (var ofO = 1; ofO < ofOldN; ofO = ofO + 1) {
+          var ofOb = ofOldRow[ofO];
+          var ofOv = ofOb[2] + ofOb[3];
+          if (ofOv > 0) {
+            var ofOx = floor((ofOb[0] + ofOb[1]) / ladStep2) - ladBase;
+            if (ofOx >= 0 && ofOx < ofLen) { var ofNv = ladVol[ofOx] - ofOv; ladVol[ofOx] = ofNv < 0.000001 ? 0 : ofNv; }
+          }
+        }
+      }
+      // keep both ends on volume (the value area's neighbor test and the
+      // range clamp read the array's ends as the ladder's extent)
+      while (ladVol.length > 0 && ladVol[0] <= 0) { ladVol.shift(); ladBase = ladBase + 1; }
+      while (ladVol.length > 0 && ladVol[ladVol.length - 1] <= 0) { ladVol.pop(); }
+    }
+  }
+}
+var ladHas = ofLadderOn && ladStep > 0 && ladVol.length > 0;
+
+// ---------------------------------------------------- break grading (PAC-1) --
+// grade: 0 no data, 1 confirmed, 2 thin (low participation), 3 run (a CHoCH
+// whose break bar traded against it). dir = +1 bullish break, -1 bearish.
+// Confirmed = the bar's delta share in the break's direction reaches the
+// threshold AND the footprint beyond the broken level does not oppose it
+// (buckets fully beyond the level, buy - sell in the break's direction).
+// Closed bars only: the app re-runs the forming bar on every tick from
+// scratch, so a grade read off the live bar's row would rewrite the tag as
+// the taker split fills in (thin / run / plain flicker). While the break bar
+// forms the tag stays plain (0); the grade is read once, when the bar closes
+// (isConfirmed), from the closed row, and the tooltip carries those numbers.
+persist ofTipShare = 0; persist ofTipLevel = 0; persist ofTipLevelHas = false;
+func ofGradeBreak(dir, level, isChoch) {
+  if (ofBreakGrade == false || ofHasFlow == false || isConfirmed == false) { return 0; }
+  var ofS = ofShare * dir;
+  var lvBuy = 0; var lvSell = 0;
+  for (var lq = 1; lq < ofRow.length; lq = lq + 1) {
+    var lvBk = ofRow[lq];
+    var lvBeyond = dir > 0 ? lvBk[0] >= level : lvBk[1] <= level;
+    if (lvBeyond) { lvBuy = lvBuy + lvBk[2]; lvSell = lvSell + lvBk[3]; }
+  }
+  ofTipShare = ofS;
+  ofTipLevelHas = lvBuy + lvSell > 0;
+  ofTipLevel = ofTipLevelHas ? ((lvBuy - lvSell) / (lvBuy + lvSell)) * dir : 0;
+  if (isChoch && ofS <= 0 - ofThr) { return 3; }
+  if (ofS >= ofThr && (ofTipLevelHas == false || ofTipLevel >= 0)) { return 1; }
+  return 2;
+}
+func ofPct(x) {
+  var pctR = round(100 * x);
+  return (pctR >= 0 ? "+" : "") + tostring(pctR) + "%";
+}
+func ofGradeWord(g) {
+  return g == 1 ? "confirmed" : (g == 2 ? "thin" : "run");
+}
+// The tag itself: plain when ungraded (g == 0), else the suffix, a dimmer
+// tone for thin, and the numbers in the tooltip.
+func ofTag(x, y, text, col, size, g) {
+  if (g == 0) { return label.new(x, y, text, {color: col, bgcolor: "transparent", size: size}); }
+  var tipTxt = "delta share " + ofPct(ofTipShare) + (ofTipLevelHas ? ", beyond the level " + ofPct(ofTipLevel) : "") + ": " + ofGradeWord(g);
+  var tagTxt = g == 1 ? text : text + " " + ofGradeWord(g);
+  return label.new(x, y, tagTxt, {color: g == 2 ? opacity(col, 55) : col, bgcolor: "transparent", size: size, tooltip: tipTxt});
+}
+// per-bar alert flags (any horizon, drawn or not)
+var ofThinBull = false; var ofThinBear = false; var ofRunBull = false; var ofRunBear = false;
+
+// ---------------------------------------------------- gap grading (PAC-4) ---
+// verdict at creation: 0 plain, 1 fast fill (every cell inside the gap under
+// half the ladder's typical cell), 2 sticky (a cell at least 1.5 x the
+// typical cell). Typical = mean of the ladder's non-empty cells; a cell is
+// inside the gap when its midpoint is.
+persist gapTipMax = 0; persist gapTipTypical = 0;
+func ofGapVerdict(bottom, top) {
+  var gv = 0;
+  if (ofGapGrade && ladHas) {
+    var gapNz = 0; var gapSum = 0;
+    for (var gc = 0; gc < ladVol.length; gc = gc + 1) { if (ladVol[gc] > 0) { gapNz = gapNz + 1; gapSum = gapSum + ladVol[gc]; } }
+    if (gapNz > 0) {
+      var gapTyp = gapSum / gapNz;
+      var gapMx = 0;
+      // the gap's cells: every cell whose midpoint lies inside [bottom, top]
+      var gkLo = math.ceil(bottom / ladStep - 0.5); var gkHi = floor(top / ladStep - 0.5);
+      for (var gk = gkLo; gk <= gkHi; gk = gk + 1) {
+        var gix = gk - ladBase;
+        if (gix >= 0 && gix < ladVol.length && ladVol[gix] > gapMx) { gapMx = ladVol[gix]; }
+      }
+      gapTipMax = gapMx; gapTipTypical = gapTyp;
+      if (gapMx >= 1.5 * gapTyp) { gv = 2; }
+      else { if (gapMx < 0.5 * gapTyp) { gv = 1; } }
+    }
+  }
+  return gv;
+}
+
+// ============================================================================
+// MARKET STRUCTURE (internal + swing horizons, letters, candle coloring)
+// ============================================================================
+// A confirmed level is broken at most once, by CLOSE strictly through it. A
+// break with the prevailing trend prints BOS; against it, the trend flips and
+// prints CHoCH (the leg into the break was still extending past the prior
+// opposite swing) or CHoCH+ (that leg had already failed to reach it). The
+// leg is measured on raw highs / lows from the bar after the broken swing's
+// pivot up to the bar before the break.
+func classShown(disp, isBos, isPlus) {
+  if (disp == "None") { return false; }
+  if (disp == "All") { return true; }
+  if (disp == "BOS") { return isBos; }
+  if (disp == "CHoCH (All)") { return isBos == false; }
+  if (disp == "CHoCH+") { return isBos == false && isPlus; }
+  if (disp == "CHoCH") { return isBos == false && isPlus == false; }
+  return true;
+}
+
+// internal horizon
+persist iTopY = 0; persist iTopPivot = 0; persist iTopT = 0; persist iTopCrossed = 0; persist iTopHas = 0;
+persist iPrevTopY = 0; persist iPrevTopPivot = 0; persist iPrevTopHas = 0;
+persist iBtmY = 0; persist iBtmPivot = 0; persist iBtmT = 0; persist iBtmCrossed = 0; persist iBtmHas = 0;
+persist iPrevBtmY = 0; persist iPrevBtmPivot = 0; persist iPrevBtmHas = 0;
+persist iLegMin = 0; persist iLegMax = 0;
+persist iTrend = 0; persist iState = 0;
+
+// swing horizon
+persist sTopY = 0; persist sTopPivot = 0; persist sTopT = 0; persist sTopCrossed = 0; persist sTopHas = 0;
+persist sPrevTopY = 0; persist sPrevTopPivot = 0; persist sPrevTopHas = 0;
+persist sBtmY = 0; persist sBtmPivot = 0; persist sBtmT = 0; persist sBtmCrossed = 0; persist sBtmHas = 0;
+persist sPrevBtmY = 0; persist sPrevBtmPivot = 0; persist sPrevBtmHas = 0;
+persist sLegMin = 0; persist sLegMax = 0;
+persist sTrend = 0;
+
+// drawing history (bounded; see the budget in the header)
+persist iLines = []; persist iTags = [];
+persist sLines = []; persist sTags = [];
+persist iMarks = [];
+var iStructCap = 100;
+var sStructCap = 30;
+var markCap = 300 - 2 * obShowLast;
+
+// per-bar event flags
+var iBullBos = false; var iBullChoch = false; var iBullChochPlus = false;
+var iBearBos = false; var iBearChoch = false; var iBearChochPlus = false;
+var sBullBos = false; var sBullChoch = false; var sBullChochPlus = false;
+var sBearBos = false; var sBearChoch = false; var sBearChochPlus = false;
+
+// ----------------------------------------------- internal horizon engine ----
+if (barNo >= iLen) {
+  var iCandHigh = d.high[iLen];
+  var iCandLow = d.low[iLen];
+  // 1. swing-point registration (from the shared detector)
+  if (iEvt == 1) {
+    var iTopMark = "";
+    if (iTopHas == 1) { iTopMark = iCandHigh > iTopY ? "HH" : "LH"; }
+    iPrevTopY = iTopY; iPrevTopPivot = iTopPivot; iPrevTopHas = iTopHas;
+    iTopY = iCandHigh; iTopPivot = barNo - iLen; iTopT = d.time[iLen];
+    iTopCrossed = 0; iTopHas = 1;
+    iLegMin = iWinLow; // low of [pivot+1 .. confirm], seeds the leg extreme
+    if (showMarks && iTopMark != "") {
+      // two-tier chip: HH (trend continuation) filled, LH outlined
+      var isHH = iTopMark == "HH";
+      if (iMarks.length >= markCap) { iMarks[0].delete(); iMarks.shift(); }
+      iMarks.push(label.new(iTopT, iTopY, iTopMark,
+        {color: isHH ? "#0b0e14" : iBearDraw, bgcolor: isHH ? iBearDraw : "transparent", size: isHH ? iTagSize + 1 : iTagSize}));
+    }
+  }
+  if (iEvt == 2) {
+    var iBtmMark = "";
+    if (iBtmHas == 1) { iBtmMark = iCandLow < iBtmY ? "LL" : "HL"; }
+    iPrevBtmY = iBtmY; iPrevBtmPivot = iBtmPivot; iPrevBtmHas = iBtmHas;
+    iBtmY = iCandLow; iBtmPivot = barNo - iLen; iBtmT = d.time[iLen];
+    iBtmCrossed = 0; iBtmHas = 1;
+    iLegMax = iWinHigh;
+    if (showMarks && iBtmMark != "") {
+      var isLL = iBtmMark == "LL";
+      if (iMarks.length >= markCap) { iMarks[0].delete(); iMarks.shift(); }
+      iMarks.push(label.new(iBtmT, iBtmY, iBtmMark,
+        {color: isLL ? "#0b0e14" : iBullDraw, bgcolor: isLL ? iBullDraw : "transparent", size: isLL ? iTagSize + 1 : iTagSize}));
+    }
+  }
+
+  // 2. breaks: close strictly through the most recent confirmed level, once
+  if (iTopHas == 1 && iTopCrossed == 0 && d.close[0] > iTopY) {
+    iTopCrossed = 1;
+    if (iTrend == 1) { iBullBos = true; iState = 2; }
+    else {
+      var iRefBtmHas = 0; var iRefBtmY = 0;
+      if (iBtmHas == 1 && iBtmPivot < iTopPivot) { iRefBtmHas = 1; iRefBtmY = iBtmY; }
+      else {
+        if (iPrevBtmHas == 1 && iPrevBtmPivot < iTopPivot) { iRefBtmHas = 1; iRefBtmY = iPrevBtmY; }
+      }
+      if (iRefBtmHas == 1 && iLegMin < iRefBtmY) { iBullChoch = true; } else { iBullChochPlus = true; }
+      iState = 1;
+    }
+    iTrend = 1;
+  }
+  if (iBtmHas == 1 && iBtmCrossed == 0 && d.close[0] < iBtmY) {
+    iBtmCrossed = 1;
+    if (iTrend == -1) { iBearBos = true; iState = -2; }
+    else {
+      var iRefTopHas = 0; var iRefTopY = 0;
+      if (iTopHas == 1 && iTopPivot < iBtmPivot) { iRefTopHas = 1; iRefTopY = iTopY; }
+      else {
+        if (iPrevTopHas == 1 && iPrevTopPivot < iBtmPivot) { iRefTopHas = 1; iRefTopY = iPrevTopY; }
+      }
+      if (iRefTopHas == 1 && iLegMax > iRefTopY) { iBearChoch = true; } else { iBearChochPlus = true; }
+      iState = -1;
+    }
+    iTrend = -1;
+  }
+
+  // 3. leg extremes accumulate AFTER the break checks (the break bar itself
+  // is excluded from the leg by construction)
+  if (iTopHas == 1 && iTopCrossed == 0) { iLegMin = min(iLegMin, d.low[0]); }
+  if (iBtmHas == 1 && iBtmCrossed == 0) { iLegMax = max(iLegMax, d.high[0]); }
+}
+
+// -------------------------------------------------- swing horizon engine ----
+if (barNo >= sLen) {
+  var sCandHigh = d.high[sLen];
+  var sCandLow = d.low[sLen];
+  if (sEvt == 1) {
+    sPrevTopY = sTopY; sPrevTopPivot = sTopPivot; sPrevTopHas = sTopHas;
+    sTopY = sCandHigh; sTopPivot = barNo - sLen; sTopT = d.time[sLen];
+    sTopCrossed = 0; sTopHas = 1;
+    sLegMin = sWinLow;
+  }
+  if (sEvt == 2) {
+    sPrevBtmY = sBtmY; sPrevBtmPivot = sBtmPivot; sPrevBtmHas = sBtmHas;
+    sBtmY = sCandLow; sBtmPivot = barNo - sLen; sBtmT = d.time[sLen];
+    sBtmCrossed = 0; sBtmHas = 1;
+    sLegMax = sWinHigh;
+  }
+
+  if (sTopHas == 1 && sTopCrossed == 0 && d.close[0] > sTopY) {
+    sTopCrossed = 1;
+    if (sTrend == 1) { sBullBos = true; }
+    else {
+      var sRefBtmHas = 0; var sRefBtmY = 0;
+      if (sBtmHas == 1 && sBtmPivot < sTopPivot) { sRefBtmHas = 1; sRefBtmY = sBtmY; }
+      else {
+        if (sPrevBtmHas == 1 && sPrevBtmPivot < sTopPivot) { sRefBtmHas = 1; sRefBtmY = sPrevBtmY; }
+      }
+      if (sRefBtmHas == 1 && sLegMin < sRefBtmY) { sBullChoch = true; } else { sBullChochPlus = true; }
+    }
+    sTrend = 1;
+  }
+  if (sBtmHas == 1 && sBtmCrossed == 0 && d.close[0] < sBtmY) {
+    sBtmCrossed = 1;
+    if (sTrend == -1) { sBearBos = true; }
+    else {
+      var sRefTopHas = 0; var sRefTopY = 0;
+      if (sTopHas == 1 && sTopPivot < sBtmPivot) { sRefTopHas = 1; sRefTopY = sTopY; }
+      else {
+        if (sPrevTopHas == 1 && sPrevTopPivot < sBtmPivot) { sRefTopHas = 1; sRefTopY = sPrevTopY; }
+      }
+      if (sRefTopHas == 1 && sLegMax > sRefTopY) { sBearChoch = true; } else { sBearChochPlus = true; }
+    }
+    sTrend = -1;
+  }
+
+  if (sTopHas == 1 && sTopCrossed == 0) { sLegMin = min(sLegMin, d.low[0]); }
+  if (sBtmHas == 1 && sBtmCrossed == 0) { sLegMax = max(sLegMax, d.high[0]); }
+}
+
+// ------------------------------------------------------ structure view ----
+// Every event: a dashed level line from the broken pivot to the break bar,
+// and a tiny tag with the event word (BOS / CHoCH / CHoCH+) at the
+// segment's midpoint bar, lifted off the level (above a bullish break, below
+// a bearish one). Internal and swing horizons share the grammar and differ by
+// color and tag size only. Both histories are bounded.
+func structTag(isBos, isPlus) {
+  return isBos ? "BOS" : (isPlus ? "CHoCH+" : "CHoCH");
+}
+var iBullEvt = iBullBos || iBullChoch || iBullChochPlus;
+var iBearEvt = iBearBos || iBearChoch || iBearChochPlus;
+var iShowBull = iBullEvt && classShown(iDisplay, iBullBos, iBullChochPlus);
+var iShowBear = iBearEvt && classShown(iDisplay, iBearBos, iBearChochPlus);
+// Order Flow grade of every event (drawn or not): the tag suffix / tone and
+// the thin / run alerts.
+var iBullGrade = 0; var iBearGrade = 0; var sBullGrade = 0; var sBearGrade = 0;
+if (iBullEvt) { iBullGrade = ofGradeBreak(1, iTopY, iBullBos == false); }
+if (iBearEvt) { iBearGrade = ofGradeBreak(-1, iBtmY, iBearBos == false); }
+if (iShowBull) {
+  if (iLines.length >= iStructCap) {
+    iLines[0].delete(); iLines.shift();
+    iTags[0].delete(); iTags.shift();
+  }
+  iLines.push(line.new(iTopT, iTopY, d.time[0], iTopY, {color: iBullDraw, width: 1, style: "dashed"}));
+  if (iBullGrade > 0) { ofGradeBreak(1, iTopY, iBullBos == false); }
+  iTags.push(ofTag(midBarT(iTopPivot, barNo), iTopY + tagLift, structTag(iBullBos, iBullChochPlus), iBullDraw, iTagSize, iBullGrade));
+}
+if (iShowBear) {
+  if (iLines.length >= iStructCap) {
+    iLines[0].delete(); iLines.shift();
+    iTags[0].delete(); iTags.shift();
+  }
+  iLines.push(line.new(iBtmT, iBtmY, d.time[0], iBtmY, {color: iBearDraw, width: 1, style: "dashed"}));
+  if (iBearGrade > 0) { ofGradeBreak(-1, iBtmY, iBearBos == false); }
+  iTags.push(ofTag(midBarT(iBtmPivot, barNo), iBtmY - tagLift, structTag(iBearBos, iBearChochPlus), iBearDraw, iTagSize, iBearGrade));
+}
+
+var sBullEvt = sBullBos || sBullChoch || sBullChochPlus;
+var sBearEvt = sBearBos || sBearChoch || sBearChochPlus;
+var sShowBull = sBullEvt && classShown(sDisplay, sBullBos, sBullChochPlus);
+var sShowBear = sBearEvt && classShown(sDisplay, sBearBos, sBearChochPlus);
+if (sBullEvt) { sBullGrade = ofGradeBreak(1, sTopY, sBullBos == false); }
+if (sBearEvt) { sBearGrade = ofGradeBreak(-1, sBtmY, sBearBos == false); }
+if (sShowBull) {
+  if (sLines.length >= sStructCap) {
+    sLines[0].delete(); sLines.shift();
+    sTags[0].delete(); sTags.shift();
+  }
+  sLines.push(line.new(sTopT, sTopY, d.time[0], sTopY, {color: sBullDraw, width: 1, style: "dashed"}));
+  if (sBullGrade > 0) { ofGradeBreak(1, sTopY, sBullBos == false); }
+  sTags.push(ofTag(midBarT(sTopPivot, barNo), sTopY + tagLift, structTag(sBullBos, sBullChochPlus), sBullDraw, sTagSize, sBullGrade));
+}
+if (sShowBear) {
+  if (sLines.length >= sStructCap) {
+    sLines[0].delete(); sLines.shift();
+    sTags[0].delete(); sTags.shift();
+  }
+  sLines.push(line.new(sBtmT, sBtmY, d.time[0], sBtmY, {color: sBearDraw, width: 1, style: "dashed"}));
+  if (sBearGrade > 0) { ofGradeBreak(-1, sBtmY, sBearBos == false); }
+  sTags.push(ofTag(midBarT(sBtmPivot, barNo), sBtmY - tagLift, structTag(sBearBos, sBearChochPlus), sBearDraw, sTagSize, sBearGrade));
+}
+ofThinBull = iBullGrade == 2 || sBullGrade == 2;
+ofThinBear = iBearGrade == 2 || sBearGrade == 2;
+ofRunBull = iBullGrade == 3 || sBullGrade == 3;
+ofRunBear = iBearGrade == 3 || sBearGrade == 3;
+
+// Break dots (Event dots and pins): a small circle at the broken level on the break
+// bar (presence = a structure event, position = the level). Series plots.
+if (showEventMarkers) {
+  var iDotVal = na; var iDotCi = 0;
+  if (iShowBull) { iDotVal = iTopY; iDotCi = 0; }
+  if (iShowBear) { iDotVal = iBtmY; iDotCi = 1; }
+  plotShape(value=iDotVal, shape="circle", colors=[iBullDraw, iBearDraw], colorIndex=iDotCi,
+    width=5, location="absolute", label=["Internal break dot"],
+    desc=["Internal structure break: dot sits on the broken level at the break bar."]);
+  var sDotVal = na; var sDotCi = 0;
+  if (sShowBull) { sDotVal = sTopY; sDotCi = 0; }
+  if (sShowBear) { sDotVal = sBtmY; sDotCi = 1; }
+  plotShape(value=sDotVal, shape="circle", colors=[sBullDraw, sBearDraw], colorIndex=sDotCi,
+    width=7, location="absolute", label=["Swing break dot"],
+    desc=["Swing structure break: dot sits on the broken level at the break bar."]);
+}
+
+// Candle coloring: internal trend state readout. BOS = full tint, CHoCH /
+// CHoCH+ = soft tint (45% opacity of the same hue).
+if (colorCandles && iState != 0) {
+  var stateColor = iState == 2 ? iBull : (iState == 1 ? opacity(iBull, 45) : (iState == -1 ? opacity(iBear, 45) : iBear));
+  barcolor(color=stateColor);
+}
+
+// ============================================================================
+// PREMIUM / DISCOUNT ZONES (anchored by the swing-length detector)
+// ============================================================================
+// The zone high re-anchors to each newly registered swing high and ratchets
+// up with price in between; the zone low mirrors it. The level series are a
+// fixed partition of that trailing range (the four interior levels):
+// premium bottom at 95%, equilibrium 47.5% .. 52.5%, discount top at 5%.
+// The drawn bands straddle their anchors:
+// premium = the swing high +- 5% of the range, discount = the swing low
+// +- 5%, equilibrium = the middle 5%. Seeded from the first bar so the
+// bands cover the whole chart; the seed converges at the first re-anchor.
+// Each edge remembers the bar that set it (the range's anchors) and that
+// bar's volume (the strong / weak readout).
+persist zoneHigh = 0;
+persist zoneLow = 0;
+persist zoneHighT = 0;
+persist zoneLowT = 0;
+persist zoneHighVol = 0;
+persist zoneLowVol = 0;
+if (barNo == 0) {
+  zoneHigh = d.high[0]; zoneHighT = d.time[0]; zoneHighVol = d.volume[0];
+  zoneLow = d.low[0]; zoneLowT = d.time[0]; zoneLowVol = d.volume[0];
+}
+if (sEvt == 1) { zoneHigh = d.high[sLen]; zoneHighT = d.time[sLen]; zoneHighVol = d.volume[sLen]; }
+if (sEvt == 2) { zoneLow = d.low[sLen]; zoneLowT = d.time[sLen]; zoneLowVol = d.volume[sLen]; }
+if (d.high[0] > zoneHigh) { zoneHigh = d.high[0]; zoneHighT = d.time[0]; zoneHighVol = d.volume[0]; }
+if (d.low[0] < zoneLow) { zoneLow = d.low[0]; zoneLowT = d.time[0]; zoneLowVol = d.volume[0]; }
+
+var zoneRange = zoneHigh - zoneLow;
+var premiumBottom = zoneLow + 0.95 * zoneRange;
+var equilibriumTop = zoneLow + 0.525 * zoneRange;
+var equilibriumBottom = zoneLow + 0.475 * zoneRange;
+var discountTop = zoneLow + 0.05 * zoneRange;
+var premiumTop = zoneHigh + 0.05 * zoneRange;
+var discountBottom = zoneLow - 0.05 * zoneRange;
+// Value-area mode (Order Flow): equilibrium = the cells around the ladder's
+// point of control, inside the trailing swing range, that hold 70% of the
+// range's composite volume (grown one cell at a time toward the heavier
+// neighbor); premium = above it up to the range high, discount = below it
+// down to the range low. Stands down to the classic lattice above when the
+// ladder holds no volume inside the range.
+var vaOn = false; var vaHigh = 0; var vaLow = 0; var vaPoc = 0;
+if (ofValueZones && ladHas && zoneRange > 0) {
+  var vaKLo = max(floor(zoneLow / ladStep), ladBase);
+  var vaKHi = min(floor(zoneHigh / ladStep), ladBase + ladVol.length - 1);
+  if (vaKHi >= vaKLo) {
+    var vaTot = 0; var vaPk = vaKLo; var vaPv = -1;
+    for (var vaK = vaKLo; vaK <= vaKHi; vaK = vaK + 1) {
+      var vaCv = ladVol[vaK - ladBase];
+      vaTot = vaTot + vaCv;
+      if (vaCv > vaPv) { vaPv = vaCv; vaPk = vaK; }
+    }
+    if (vaTot > 0) {
+      var vaLoK = vaPk; var vaHiK = vaPk; var vaAcc = vaPv; var vaTarget = 0.7 * vaTot;
+      while (vaAcc < vaTarget && (vaLoK > vaKLo || vaHiK < vaKHi)) {
+        var vaBelow = vaLoK > vaKLo ? ladVol[vaLoK - 1 - ladBase] : -1;
+        var vaAbove = vaHiK < vaKHi ? ladVol[vaHiK + 1 - ladBase] : -1;
+        if (vaAbove > vaBelow) { vaHiK = vaHiK + 1; vaAcc = vaAcc + vaAbove; }
+        else { vaLoK = vaLoK - 1; vaAcc = vaAcc + vaBelow; }
+      }
+      vaOn = true;
+      vaLow = max(vaLoK * ladStep, zoneLow);
+      vaHigh = min((vaHiK + 1) * ladStep, zoneHigh);
+      vaPoc = (vaPk + 0.5) * ladStep;
+    }
+  }
+}
+if (vaOn) {
+  premiumBottom = vaHigh; equilibriumTop = vaHigh; equilibriumBottom = vaLow; discountTop = vaLow;
+  premiumTop = zoneHigh; discountBottom = zoneLow;
+}
+var pdPremTip = vaOn ? "Premium: above the value area, up to the swing high" : "Premium: the swing high +- 5% of the trailing swing range";
+var pdEqTip = vaOn ? "Equilibrium: the value area (70% of the composite footprint volume inside the trailing swing range)" : "Equilibrium: middle 5% of the trailing swing range";
+var pdDiscTip = vaOn ? "Discount: below the value area, down to the swing low" : "Discount: the swing low +- 5% of the trailing swing range";
+
+// Three bands at the right edge, drawn once on the last bar and re-anchored
+// there afterwards: from the range's older anchor to 20 bars past the
+// current bar. Premium and Discount are named inside their band at the
+// band's midpoint bar, Equilibrium at the bands' right end.
+persist pdBoxes = [];
+persist pdTags = [];
+var pdOverhang = 20;
+if (showZones && isLastBar) {
+  var pdLeft = min(zoneHighT, zoneLowT);
+  var pdRight = d.time[0] + pdOverhang * currentInterval;
+  var pdMidX = pdLeft + floor((pdRight - pdLeft) / (2 * currentInterval)) * currentInterval;
+  var pdPremMid = (premiumTop + premiumBottom) / 2;
+  var pdEqMid = (equilibriumTop + equilibriumBottom) / 2;
+  var pdDiscMid = (discountTop + discountBottom) / 2;
+  if (pdBoxes.length == 0) {
+    pdBoxes.push(box.new(pdLeft, premiumTop, pdRight, premiumBottom,
+      {bgcolor: opacity(premiumColor, 12), borderColor: opacity(premiumColor, 35), borderWidth: 1, borderStyle: "solid", tooltip: pdPremTip}));
+    pdBoxes.push(box.new(pdLeft, equilibriumTop, pdRight, equilibriumBottom,
+      {bgcolor: opacity(equilibriumColor, 12), borderColor: opacity(equilibriumColor, 35), borderWidth: 1, borderStyle: "solid", tooltip: pdEqTip}));
+    pdBoxes.push(box.new(pdLeft, discountTop, pdRight, discountBottom,
+      {bgcolor: opacity(discountColor, 12), borderColor: opacity(discountColor, 35), borderWidth: 1, borderStyle: "solid", tooltip: pdDiscTip}));
+    pdTags.push(label.new(pdMidX, pdPremMid, "Premium", {color: premiumColor, bgcolor: "transparent", size: 9}));
+    pdTags.push(label.new(pdRight, pdEqMid, "Equilibrium", {color: equilibriumColor, bgcolor: "transparent", size: 9, stickyRight: true}));
+    pdTags.push(label.new(pdMidX, pdDiscMid, "Discount", {color: discountColor, bgcolor: "transparent", size: 9}));
+  } else {
+    pdBoxes[0].set_lefttop(pdLeft, premiumTop); pdBoxes[0].set_rightbottom(pdRight, premiumBottom);
+    pdBoxes[1].set_lefttop(pdLeft, equilibriumTop); pdBoxes[1].set_rightbottom(pdRight, equilibriumBottom);
+    pdBoxes[2].set_lefttop(pdLeft, discountTop); pdBoxes[2].set_rightbottom(pdRight, discountBottom);
+    pdTags[0].set_xy(pdMidX, pdPremMid);
+    pdTags[1].set_xy(pdRight, pdEqMid);
+    pdTags[2].set_xy(pdMidX, pdDiscMid);
+  }
+}
+// Optional full-history readout of the same levels (thin dotted lines, no
+// fill): the range edges and the four interior boundaries, as the data
+// window shows them. Off by default.
+if (showZones && showZoneLevels) {
+  plotLine(value=[zoneHigh, premiumBottom], colors=[premiumColor], width=1, lineStyle="dotted",
+    smooth=false, showPriceDisplay=false,
+    label=["Range high", "Premium floor"],
+    desc=["Trailing swing-range high: the center of the premium band (the band spans +- 5% of the range around it).", "Premium zone floor: 95% of the trailing swing range."]);
+  plotLine(value=[equilibriumTop, equilibriumBottom], colors=[equilibriumColor], width=1, lineStyle="dotted",
+    smooth=false, showPriceDisplay=false,
+    label=["Equilibrium ceiling", "Equilibrium floor"],
+    desc=["Equilibrium ceiling: 52.5% of the trailing swing range.", "Equilibrium floor: 47.5% of the trailing swing range."]);
+  plotLine(value=[discountTop, zoneLow], colors=[discountColor], width=1, lineStyle="dotted",
+    smooth=false, showPriceDisplay=false,
+    label=["Discount ceiling", "Range low"],
+    desc=["Discount zone ceiling: 5% of the trailing swing range.", "Trailing swing-range low: the center of the discount band (the band spans +- 5% of the range around it)."]);
+}
+var inPremium = showZones && barNo >= sLen && d.close[0] >= premiumBottom;
+var inDiscount = showZones && barNo >= sLen && d.close[0] <= discountTop;
+
+// ------------------------------------------ strong / weak high / low ----
+// The range's two anchors as levels (the strong / weak high / low of the
+// trailing swing range): a solid
+// line from each anchor bar to 20 bars past the current bar, tagged at its
+// right end with the anchor bar's share of the volume traded on the two
+// anchor bars ("Strong Low 69%"): the larger share is Strong, the smaller
+// Weak. Swing palette, bearish hue on the high, bullish on the low. Drawn
+// once on the last bar and re-anchored there afterwards, like the bands.
+persist swLevelLines = [];
+persist swLevelTags = [];
+if (showStrongWeak && isLastBar) {
+  var swRight = d.time[0] + pdOverhang * currentInterval;
+  var swVolSum = zoneHighVol + zoneLowVol;
+  var swPctHigh = swVolSum > 0 ? round(100 * zoneHighVol / swVolSum) : 50;
+  var swPctLow = swVolSum > 0 ? round(100 * zoneLowVol / swVolSum) : 50;
+  var swHighText = (zoneHighVol > zoneLowVol ? "Strong High " : "Weak High ") + tostring(swPctHigh) + "%";
+  var swLowText = (zoneLowVol > zoneHighVol ? "Strong Low " : "Weak Low ") + tostring(swPctLow) + "%";
+  if (swLevelLines.length == 0) {
+    swLevelLines.push(line.new(zoneHighT, zoneHigh, swRight, zoneHigh, {color: sBearDraw, width: 1, style: "solid"}));
+    swLevelLines.push(line.new(zoneLowT, zoneLow, swRight, zoneLow, {color: sBullDraw, width: 1, style: "solid"}));
+    swLevelTags.push(label.new(swRight, zoneHigh + tagLift, swHighText, {color: sBearDraw, bgcolor: "transparent", size: sTagSize, stickyRight: true}));
+    swLevelTags.push(label.new(swRight, zoneLow - tagLift, swLowText, {color: sBullDraw, bgcolor: "transparent", size: sTagSize, stickyRight: true}));
+  } else {
+    swLevelLines[0].set_xy1(zoneHighT, zoneHigh); swLevelLines[0].set_xy2(swRight, zoneHigh);
+    swLevelLines[1].set_xy1(zoneLowT, zoneLow); swLevelLines[1].set_xy2(swRight, zoneLow);
+    swLevelTags[0].set_xy(swRight, zoneHigh + tagLift); swLevelTags[0].set_text(swHighText);
+    swLevelTags[1].set_xy(swRight, zoneLow - tagLift); swLevelTags[1].set_text(swLowText);
+  }
+}
+
+// ============================================================================
+// LIQUIDITY: EQUAL HIGHS / LOWS + LIQUIDITY GRABS
+// ============================================================================
+// Equal H/L: two-sided fractal pivots with a fixed side length (3 Short-Term,
+// 15 Long-Term). Left window may tie the pivot, right window must stay
+// strictly beyond; a pivot confirms N bars late. Consecutive same-side pivots
+// within 0.1 x ATR(200) are equal and are drawn retrospectively as a pool.
+var eqN = eqhlTerm == "Long-Term" ? 15 : 3;
+timeseries eqWinHigh = highest(source=d.high, period=eqN);
+timeseries eqWinLow = lowest(source=d.low, period=eqN);
+persist eqPhHas = false; persist eqPhVal = 0; persist eqPhT = 0; persist eqPhBar = 0;
+persist eqPlHas = false; persist eqPlVal = 0; persist eqPlT = 0; persist eqPlBar = 0;
+var eqhFire = false; var eqlFire = false;
+var eqhFromT = 0; var eqhFromVal = 0; var eqhToT = 0; var eqhToVal = 0; var eqhFromBar = 0; var eqhToBar = 0;
+var eqlFromT = 0; var eqlFromVal = 0; var eqlToT = 0; var eqlToVal = 0; var eqlFromBar = 0; var eqlToBar = 0;
+if (barNo >= 2 * eqN) {
+  var eqPvH = d.high[eqN];
+  var eqPvL = d.low[eqN];
+  var eqLeftMaxH = eqWinHigh[eqN + 1];
+  var eqRightMaxH = eqWinHigh[0];
+  var eqLeftMinL = eqWinLow[eqN + 1];
+  var eqRightMinL = eqWinLow[0];
+  var eqIsPH = eqLeftMaxH <= eqPvH && eqRightMaxH < eqPvH;
+  var eqIsPL = eqLeftMinL >= eqPvL && eqRightMinL > eqPvL;
+  if (eqIsPH) {
+    if (eqPhHas && abs(eqPvH - eqPhVal) < 0.1 * atr200) {
+      eqhFire = true;
+      eqhFromT = eqPhT; eqhFromVal = eqPhVal; eqhToT = d.time[eqN]; eqhToVal = eqPvH;
+      eqhFromBar = eqPhBar; eqhToBar = barNo - eqN;
+    }
+    eqPhHas = true; eqPhVal = eqPvH; eqPhT = d.time[eqN]; eqPhBar = barNo - eqN;
+  }
+  if (eqIsPL) {
+    if (eqPlHas && abs(eqPvL - eqPlVal) < 0.1 * atr200) {
+      eqlFire = true;
+      eqlFromT = eqPlT; eqlFromVal = eqPlVal; eqlToT = d.time[eqN]; eqlToVal = eqPvL;
+      eqlFromBar = eqPlBar; eqlToBar = barNo - eqN;
+    }
+    eqPlHas = true; eqPlVal = eqPvL; eqPlT = d.time[eqN]; eqPlBar = barNo - eqN;
+  }
+}
+
+// Grabs: each internal swing arms one level per side (replaced by each new
+// same-side swing). A bar whose wick reaches through an armed level while its
+// BODY stays entirely inside prints a grab and retires the level; a close
+// through the level retires it silently; a wick excursion that closes back
+// inside leaves it armed for a later attempt.
+persist grabLoLvl = 0; persist grabLoArmed = false; persist grabLoT = 0;
+persist grabHiLvl = 0; persist grabHiArmed = false; persist grabHiT = 0;
+var bullGrab = false; var bearGrab = false;
+if (iEvt == 1) { grabHiLvl = d.high[iLen]; grabHiArmed = true; grabHiT = d.time[iLen]; }
+if (iEvt == 2) { grabLoLvl = d.low[iLen]; grabLoArmed = true; grabLoT = d.time[iLen]; }
+var grabBodyMin = min(d.open[0], d.close[0]);
+var grabBodyMax = max(d.open[0], d.close[0]);
+var bullGrabLvl = 0; var bullGrabT = 0;
+var bearGrabLvl = 0; var bearGrabT = 0;
+if (grabLoArmed && d.low[0] < grabLoLvl) {
+  if (grabBodyMin > grabLoLvl) {
+    bullGrab = true; bullGrabLvl = grabLoLvl; bullGrabT = grabLoT; grabLoArmed = false;
+  } else {
+    if (d.close[0] < grabLoLvl) { grabLoArmed = false; }
+  }
+}
+if (grabHiArmed && d.high[0] > grabHiLvl) {
+  if (grabBodyMax < grabHiLvl) {
+    bearGrab = true; bearGrabLvl = grabHiLvl; bearGrabT = grabHiT; grabHiArmed = false;
+  } else {
+    if (d.close[0] > grabHiLvl) { grabHiArmed = false; }
+  }
+}
+
+// ------------------------------------------------------ liquidity view ----
+// Equal levels: a short dotted connector between the two equal pivots and a
+// tiny EQH / EQL tag at the midpoint bar, lifted above (EQH) or below (EQL)
+// the pool. The newest 50 pairs are kept. Grabs: the wick pocket (a series
+// plot, no drawings) is the display; the tip triangles and the swept-level
+// rails (newest 60) are extras behind Sweep markers, off by default.
+persist eqRails = []; persist eqTags = [];
+var eqPairCap = 50;
+if (showEqhl && eqhFire) {
+  if (eqRails.length >= eqPairCap) {
+    eqRails[0].delete(); eqRails.shift();
+    eqTags[0].delete(); eqTags.shift();
+  }
+  eqRails.push(line.new(eqhFromT, eqhFromVal, eqhToT, eqhToVal, {color: eqhColor, width: 1, style: "dotted"}));
+  eqTags.push(label.new(midBarT(eqhFromBar, eqhToBar), max(eqhFromVal, eqhToVal) + tagLift, "EQH", {color: eqhColor, bgcolor: "transparent", size: eqTagSize}));
+}
+if (showEqhl && eqlFire) {
+  if (eqRails.length >= eqPairCap) {
+    eqRails[0].delete(); eqRails.shift();
+    eqTags[0].delete(); eqTags.shift();
+  }
+  eqRails.push(line.new(eqlFromT, eqlFromVal, eqlToT, eqlToVal, {color: eqlColor, width: 1, style: "dotted"}));
+  eqTags.push(label.new(midBarT(eqlFromBar, eqlToBar), min(eqlFromVal, eqlToVal) - tagLift, "EQL", {color: eqlColor, bgcolor: "transparent", size: eqTagSize}));
+}
+
+persist sweptRails = [];
+var sweptCap = 60;
+if (showGrabs && showGrabMarkers && bullGrab) {
+  if (sweptRails.length >= sweptCap) { sweptRails[0].delete(); sweptRails.shift(); }
+  sweptRails.push(line.new(bullGrabT, bullGrabLvl, d.time[0], bullGrabLvl, {color: bullGrabColor, width: 1, style: "dotted"}));
+}
+if (showGrabs && showGrabMarkers && bearGrab) {
+  if (sweptRails.length >= sweptCap) { sweptRails[0].delete(); sweptRails.shift(); }
+  sweptRails.push(line.new(bearGrabT, bearGrabLvl, d.time[0], bearGrabLvl, {color: bearGrabColor, width: 1, style: "dotted"}));
+}
+
+if (showGrabs) {
+  // Wick pocket: the swept wick drawn as a filled candle from the body edge to
+  // the wick tip. A bar that grabs on both sides shows the bullish pocket.
+  var pocketO = na; var pocketH = na; var pocketL = na; var pocketC = na; var pocketCi = 0;
+  if (bearGrab) {
+    pocketO = d.high[0]; pocketH = d.high[0]; pocketL = grabBodyMax; pocketC = grabBodyMax; pocketCi = 1;
+  }
+  if (bullGrab) {
+    pocketO = grabBodyMin; pocketH = grabBodyMin; pocketL = d.low[0]; pocketC = d.low[0]; pocketCi = 0;
+  }
+  plotCandle(value=[pocketO, pocketH, pocketL, pocketC], colors=[bullGrabColor, bearGrabColor], colorIndex=pocketCi,
+    showPriceDisplay=false, label=["Sweep pocket open", "Sweep pocket high", "Sweep pocket low", "Sweep pocket close"],
+    desc=["Swept wick pocket: body edge.", "Swept wick pocket: upper edge.", "Swept wick pocket: lower edge.", "Swept wick pocket: wick tip."]);
+  if (showGrabMarkers) {
+    var bullTip = bullGrab ? d.low[0] : na;
+    var bearTip = bearGrab ? d.high[0] : na;
+    plotShape(value=bullTip, shape="triangleUp", location="belowBar", colors=[bullGrabColor], width=7, fill=true,
+      label=["Bullish sweep tip"], desc=["Wick swept below the last internal swing low and the body held above it."]);
+    plotShape(value=bearTip, shape="triangleDown", location="aboveBar", colors=[bearGrabColor], width=7, fill=true,
+      label=["Bearish sweep tip"], desc=["Wick swept above the last internal swing high and the body held below it."]);
+  }
+}
+
+// ============================================================================
+// ORDER BLOCKS + BREAKERS
+// ============================================================================
+// Each swing high arms a bullish break level, each swing low a bearish one.
+// The first bar whose CLOSE clears an armed level creates a block: the source
+// candle is the lowest low (bullish) / highest high (bearish) strictly between
+// the swing pivot and the break bar (break bar excluded, oldest wins ties).
+// The block spans from that candle's extreme inward by min(candle range,
+// ATR(200)). Lifecycle from the creation bar on: mitigation by the candle
+// BODY beyond the far edge (Close), the wick beyond it (Wick) or the body
+// beyond the midpoint (Average); breakers off = removed, on = lives on as a
+// breaker until a close crosses the near edge. Within = close inside any
+// tracked block (either phase, inclusive). Entered = wick overlap now and not
+// on the previous bar (order-block phase only).
+// Readout volume in compact form: K / M / B with up to three decimals
+// (10.973K, 44.38K, 4.01K), plain below a thousand.
+func obFmtVol(v) {
+  if (v >= 1000000000) { return tostring(round(v / 1000000) / 1000) + "B"; }
+  if (v >= 1000000) { return tostring(round(v / 1000) / 1000) + "M"; }
+  if (v >= 1000) { return tostring(round(v) / 1000) + "K"; }
+  return tostring(round(v * 10) / 10);
+}
+
+// armed break level per side + the source-candle window it seeds
+persist obHiArmed = false; persist obHiVal = 0;
+persist obHiSrcLow = 0; persist obHiSrcHigh = 0; persist obHiSrcT = 0; persist obHiSrcBar = 0; persist obHiVol = 0; persist obHiBuy = 0;
+persist obLoArmed = false; persist obLoVal = 0;
+persist obLoSrcHigh = 0; persist obLoSrcLow = 0; persist obLoSrcT = 0; persist obLoSrcBar = 0; persist obLoVol = 0; persist obLoBuy = 0;
+
+// tracked blocks (order-block or breaker phase): parallel arrays, newest last
+persist obSide = [];      // 1 bullish, -1 bearish
+persist obBot = [];       // box bottom
+persist obTop = [];       // box top
+persist obPhase = [];     // 0 order block, 1 breaker
+persist obPrevTouch = []; // wick overlapped the block on the previous bar
+persist obSrcT = [];      // source candle time (box left edge)
+persist obSrcBar = [];    // source candle bar index (activity-bar arithmetic)
+persist obBrkT = [];      // conversion bar time once a breaker (0 before)
+persist obVol = [];       // leg volume (ours)
+persist obBuyVol = [];    // leg up-candle volume (ours)
+persist obDrawn = [];     // 1 while this block owns drawings
+persist obBoxH = [];      // body box handle slot (frozen at the conversion bar once a breaker)
+persist obBrkH = [];      // breaker segment box handle slot (from the conversion bar on)
+persist obBrkOn = [];     // 1 while the breaker segment exists
+persist obCapH = [];      // origin-cap box handle slot (the source candle's span; optional)
+persist obBuyH = [];      // buy-activity bar handle slot
+persist obSellH = [];     // sell-activity bar handle slot
+persist obActH = [];      // 1 while the activity bars exist
+persist obMidH = [];      // mid-line handle slot
+persist obTagH = [];      // metrics tag handle slot
+persist obTagTxt = [];    // metrics tag text (refreshed only when it changes)
+persist obDrawnTotal = 0; // blocks currently owning drawings
+persist obWinVolPrev = 0; // last bar's kept-window volume (the readout denominator)
+// display constants: mid-line / tag end past the current bar (bars), origin
+// cap alpha (percent)
+var obMidExt = 1;
+var obCapAlpha = min(90, obOpacity + 40);
+
+// One block's drawing slots in the parallel arrays.
+func obPushSlots() {
+  obDrawn.push(0); obBoxH.push(na); obBrkH.push(na); obBrkOn.push(0); obCapH.push(na); obBuyH.push(na); obSellH.push(na); obActH.push(0);
+  obMidH.push(na); obTagH.push(na); obTagTxt.push("");
+}
+func obRemoveAt(q) {
+  obSide.removeAt(q); obBot.removeAt(q); obTop.removeAt(q); obPhase.removeAt(q);
+  obPrevTouch.removeAt(q); obSrcT.removeAt(q); obSrcBar.removeAt(q); obBrkT.removeAt(q); obVol.removeAt(q); obBuyVol.removeAt(q);
+  obDrawn.removeAt(q); obBoxH.removeAt(q); obBrkH.removeAt(q); obBrkOn.removeAt(q); obCapH.removeAt(q); obBuyH.removeAt(q); obSellH.removeAt(q); obActH.removeAt(q);
+  obMidH.removeAt(q); obTagH.removeAt(q); obTagTxt.removeAt(q);
+}
+// Delete every drawing a block owns.
+func obDropDrawings(q) {
+  obBoxH[q].delete();
+  if (obBrkOn[q] == 1) { obBrkH[q].delete(); obBrkOn[q] = 0; }
+  if (obShowOriginCap) { obCapH[q].delete(); }
+  if (obActH[q] == 1) { obBuyH[q].delete(); obSellH[q].delete(); obActH[q] = 0; }
+  if (obShowMid) { obMidH[q].delete(); }
+  if (obShowMetrics) { obTagH[q].delete(); }
+  obDrawn[q] = 0;
+  obDrawnTotal = obDrawnTotal - 1;
+}
+// Right end of an activity bar: its share of the block's age in bars (origin
+// to the current bar inclusive), never left of the origin. A bar index past
+// the current bar is extrapolated at the chart interval.
+func obActEnd(srcBar, share) {
+  var actLen = round(share * (barNo - srcBar + 1));
+  if (actLen < 0) { actLen = 0; }
+  var endBar = srcBar + actLen;
+  if (endBar <= barNo) { return tHist[endBar]; }
+  return d.time[0] + (endBar - barNo) * currentInterval;
+}
+
+// per-bar event flags (the alert streams) + pin values
+var obBullCreated = false; var obBearCreated = false;
+var obBullMitigated = false; var obBearMitigated = false;
+var obBullBreaker = false; var obBearBreaker = false;
+var obWithinBull = false; var obWithinBear = false;
+var obBullEntered = false; var obBearEntered = false;
+var obBullPin = na; var obBearPin = na;
+var obBullCross = na; var obBearCross = na;
+
+if (obShow) {
+  // ------------------------------------------------- arming (from the detector)
+  if (obEvt == 1) {
+    // swing HIGH at the pivot bar (offset Length): arm the bullish break
+    obHiArmed = true; obHiVal = d.high[obLength];
+    obHiSrcLow = d.low[obLength - 1]; obHiSrcHigh = d.high[obLength - 1]; obHiSrcT = d.time[obLength - 1]; obHiSrcBar = barNo - (obLength - 1);
+    obHiVol = d.volume[obLength - 1];
+    obHiBuy = d.close[obLength - 1] >= d.open[obLength - 1] ? d.volume[obLength - 1] : 0;
+    for (var ka = obLength - 2; ka >= 1; ka = ka - 1) {
+      if (d.low[ka] < obHiSrcLow) { obHiSrcLow = d.low[ka]; obHiSrcHigh = d.high[ka]; obHiSrcT = d.time[ka]; obHiSrcBar = barNo - ka; }
+      obHiVol = obHiVol + d.volume[ka];
+      if (d.close[ka] >= d.open[ka]) { obHiBuy = obHiBuy + d.volume[ka]; }
+    }
+  }
+  if (obEvt == 2) {
+    // swing LOW at the pivot bar: arm the bearish break
+    obLoArmed = true; obLoVal = d.low[obLength];
+    obLoSrcHigh = d.high[obLength - 1]; obLoSrcLow = d.low[obLength - 1]; obLoSrcT = d.time[obLength - 1]; obLoSrcBar = barNo - (obLength - 1);
+    obLoVol = d.volume[obLength - 1];
+    obLoBuy = d.close[obLength - 1] >= d.open[obLength - 1] ? d.volume[obLength - 1] : 0;
+    for (var kb = obLength - 2; kb >= 1; kb = kb - 1) {
+      if (d.high[kb] > obLoSrcHigh) { obLoSrcHigh = d.high[kb]; obLoSrcLow = d.low[kb]; obLoSrcT = d.time[kb]; obLoSrcBar = barNo - kb; }
+      obLoVol = obLoVol + d.volume[kb];
+      if (d.close[kb] >= d.open[kb]) { obLoBuy = obLoBuy + d.volume[kb]; }
+    }
+  }
+
+  // ---------------------------------------------------------- creation ----
+  if (obHiArmed && d.close[0] > obHiVal) {
+    obHiArmed = false;
+    var obWb = min(obHiSrcHigh - obHiSrcLow, atr200);
+    var obTopB = obHiSrcLow + obWb;
+    obSide.push(1); obBot.push(obHiSrcLow); obTop.push(obTopB); obPhase.push(0);
+    obPrevTouch.push(barNo > 0 && d.low[1] < obTopB && d.high[1] > obHiSrcLow);
+    obSrcT.push(obHiSrcT); obSrcBar.push(obHiSrcBar); obBrkT.push(0); obVol.push(obHiVol); obBuyVol.push(obHiBuy);
+    obPushSlots();
+    obBullCreated = true;
+    obBullPin = obHiSrcLow;
+  }
+  if (obLoArmed && d.close[0] < obLoVal) {
+    obLoArmed = false;
+    var obWs = min(obLoSrcHigh - obLoSrcLow, atr200);
+    var obBotS = obLoSrcHigh - obWs;
+    obSide.push(-1); obBot.push(obBotS); obTop.push(obLoSrcHigh); obPhase.push(0);
+    obPrevTouch.push(barNo > 0 && d.low[1] < obLoSrcHigh && d.high[1] > obBotS);
+    obSrcT.push(obLoSrcT); obSrcBar.push(obLoSrcBar); obBrkT.push(0); obVol.push(obLoVol); obBuyVol.push(obLoBuy);
+    obPushSlots();
+    obBearCreated = true;
+    obBearPin = obLoSrcHigh;
+  }
+
+  // The source-candle window keeps growing while a level stays armed (this
+  // bar joins it only after the break test above).
+  if (obHiArmed) {
+    if (d.low[0] < obHiSrcLow) { obHiSrcLow = d.low[0]; obHiSrcHigh = d.high[0]; obHiSrcT = d.time[0]; obHiSrcBar = barNo; }
+    obHiVol = obHiVol + d.volume[0];
+    if (d.close[0] >= d.open[0]) { obHiBuy = obHiBuy + d.volume[0]; }
+  }
+  if (obLoArmed) {
+    if (d.high[0] > obLoSrcHigh) { obLoSrcHigh = d.high[0]; obLoSrcLow = d.low[0]; obLoSrcT = d.time[0]; obLoSrcBar = barNo; }
+    obLoVol = obLoVol + d.volume[0];
+    if (d.close[0] >= d.open[0]) { obLoBuy = obLoBuy + d.volume[0]; }
+  }
+
+  // --------------------------------------------------------- lifecycle ----
+  // Every tracked block, newest first, the creation bar included.
+  var obBodyLo = min(d.open[0], d.close[0]);
+  var obBodyHi = max(d.open[0], d.close[0]);
+  for (var obQ = obSide.length - 1; obQ >= 0; obQ = obQ - 1) {
+    var qBull = obSide[obQ] == 1;
+    var qBot = obBot[obQ];
+    var qTop = obTop[obQ];
+    var qTouch = d.low[0] < qTop && d.high[0] > qBot;
+    var qRemove = false;
+    if (obPhase[obQ] == 0) {
+      var qMid = (qBot + qTop) / 2;
+      var qDead = false;
+      if (obMitigation == "Wick") {
+        qDead = qBull ? d.low[0] < qBot : d.high[0] > qTop;
+      } else {
+        if (obMitigation == "Average") {
+          qDead = qBull ? obBodyLo < qMid : obBodyHi > qMid;
+        } else {
+          qDead = qBull ? obBodyLo < qBot : obBodyHi > qTop;
+        }
+      }
+      if (qTouch && obPrevTouch[obQ] == false) {
+        if (qBull) { obBullEntered = true; } else { obBearEntered = true; }
+      }
+      if (qDead) {
+        if (obShowBreakers) {
+          obPhase[obQ] = 1;
+          obBrkT[obQ] = d.time[0];
+          if (qBull) { obBullBreaker = true; obBullCross = qMid; } else { obBearBreaker = true; obBearCross = qMid; }
+          if (obDrawn[obQ] == 1) {
+            // split at the mitigation bar: the block body freezes here and a
+            // hollow dashed breaker segment carries on; faint cap, recolored
+            // mid-line and tag
+            var qBrkColor = qBull ? obBullBrkColor : obBearBrkColor;
+            obBoxH[obQ].set_rightbottom(d.time[0], qBot);
+            obBrkH[obQ] = box.new(d.time[0], qTop, d.time[0], qBot,
+              {bgcolor: "transparent", borderColor: opacity(qBrkColor, 80), borderWidth: 1, borderStyle: "dashed",
+               tooltip: qBull ? "Bullish breaker block" : "Bearish breaker block"});
+            obBrkOn[obQ] = 1;
+            if (obShowOriginCap) { obCapH[obQ].set_bgcolor(opacity(qBrkColor, obCapAlpha / 2)); }
+            if (obShowMid) { obMidH[obQ].set_color(opacity(qBrkColor, 70)); }
+            if (obShowMetrics) { obTagH[obQ].set_color(qBrkColor); }
+          }
+        } else {
+          if (qBull) { obBullMitigated = true; } else { obBearMitigated = true; }
+          qRemove = true;
+        }
+      }
+    }
+    if (qRemove == false && obPhase[obQ] == 1) {
+      var qDie = qBull ? d.close[0] > qTop : d.close[0] < qBot;
+      if (qDie) {
+        if (qBull) { obBullMitigated = true; } else { obBearMitigated = true; }
+        qRemove = true;
+      }
+    }
+    if (qRemove) {
+      if (obDrawn[obQ] == 1) { obDropDrawings(obQ); }
+      obRemoveAt(obQ);
+      continue;
+    }
+    if (d.close[0] >= qBot && d.close[0] <= qTop) {
+      if (qBull) { obWithinBull = true; } else { obWithinBear = true; }
+    }
+    obPrevTouch[obQ] = qTouch;
+  }
+
+  // Safety valve: blocks are tracked without a cap (84 alive at once has
+  // happened in testing); beyond 400 the oldest is dropped so a
+  // pathological feed cannot grow state forever.
+  if (obSide.length > 400) {
+    if (obDrawn[0] == 1) { obDropDrawings(0); }
+    obRemoveAt(0);
+  }
+
+  // -------------------------------------------------------------- view ----
+  // Only the newest N (Blocks kept on chart) over BOTH sides own drawings
+  // (body box, breaker segment once converted, buy / sell split bars,
+  // optional source-candle highlight, midpoint line, readout). A block loses
+  // its drawings the bar it leaves that window or dies, and regains them if
+  // it re-enters. Skip overlapping blocks suppresses a block overlapping a
+  // more recent drawn block of EITHER side (the most recent block wins; a
+  // filled block living on as a breaker hides under a newer block it
+  // overlaps the same way) without refilling the slot. The readout share is
+  // taken over the whole kept window, skipped blocks included. Drawings are
+  // created once and only
+  // mutated on a phase change, when the window's volume changes, and on the
+  // last bar (right edges follow price there).
+  var obSeen = 0;
+  var obWinVol = 0;
+  var obDispBot = []; var obDispTop = [];
+  var obDrawnIdx = [];
+  var obSeenDrawn = 0;
+  var obDrawnAtStart = obDrawnTotal;
+  for (var obV = obSide.length - 1; obV >= 0; obV = obV - 1) {
+    if (obSeen >= obShowLast && obSeenDrawn >= obDrawnAtStart) { break; }
+    var vBull = obSide[obV] == 1;
+    var vWasDrawn = obDrawn[obV] == 1;
+    if (vWasDrawn) { obSeenDrawn = obSeenDrawn + 1; }
+    var vShow = false;
+    if (obSeen < obShowLast) {
+      obSeen = obSeen + 1;
+      obWinVol = obWinVol + obVol[obV];
+      vShow = true;
+      if (obHideOverlap) {
+        for (var obOa = 0; obOa < obDispBot.length; obOa = obOa + 1) {
+          if (obBot[obV] <= obDispTop[obOa] && obTop[obV] >= obDispBot[obOa]) { vShow = false; }
+        }
+      }
+      if (vShow) { obDispBot.push(obBot[obV]); obDispTop.push(obTop[obV]); }
+    }
+    if (vShow) {
+      obDrawnIdx.push(obV);
+      if (vWasDrawn == false) {
+        var vIsBrk = obPhase[obV] == 1;
+        var vColor = vBull ? obBullColor : obBearColor;
+        var vBrkColor = vBull ? obBullBrkColor : obBearBrkColor;
+        var vLineColor = vIsBrk ? vBrkColor : vColor;
+        var vTop = obTop[obV]; var vBot = obBot[obV];
+        var vMid = (vTop + vBot) / 2;
+        var vSrcT = obSrcT[obV];
+        var vExtT = d.time[0] + obMidExt * currentInterval;
+        // body: translucent fill, faint solid border; frozen at the
+        // conversion bar once the block is a breaker
+        obBoxH[obV] = box.new(vSrcT, vTop, vIsBrk ? obBrkT[obV] : d.time[0], vBot,
+          {bgcolor: opacity(vColor, obOpacity), borderColor: opacity(vColor, 45), borderWidth: 1, borderStyle: "solid",
+           tooltip: vBull ? "Bullish order block" : "Bearish order block"});
+        // breaker segment: hollow, dashed, from the conversion bar on
+        if (vIsBrk) {
+          obBrkH[obV] = box.new(obBrkT[obV], vTop, d.time[0], vBot,
+            {bgcolor: "transparent", borderColor: opacity(vBrkColor, 80), borderWidth: 1, borderStyle: "dashed",
+             tooltip: vBull ? "Bullish breaker block" : "Bearish breaker block"});
+          obBrkOn[obV] = 1;
+        }
+        // source-candle highlight (optional): the source candle's span at a stronger tint
+        if (obShowOriginCap) {
+          obCapH[obV] = box.new(vSrcT, vTop, vSrcT + currentInterval, vBot,
+            {bgcolor: opacity(vLineColor, vIsBrk ? obCapAlpha / 2 : obCapAlpha), borderColor: "transparent", borderWidth: 1, borderStyle: "solid"});
+        }
+        // activity: the buy share fills the upper half, the sell share the
+        // lower half, both from the origin, each as long as its share of the
+        // block's age
+        if (obShowActivity && obVol[obV] > 0) {
+          var vBuy = obBuyVol[obV] / obVol[obV];
+          obBuyH[obV] = box.new(vSrcT, vTop, obActEnd(obSrcBar[obV], vBuy), vMid,
+            {bgcolor: opacity(iBull, 50), borderColor: "transparent", borderWidth: 1, borderStyle: "solid",
+             tooltip: "Buy activity: " + tostring(round(100 * vBuy)) + "% of the leg volume"});
+          obSellH[obV] = box.new(vSrcT, vMid, obActEnd(obSrcBar[obV], 1 - vBuy), vBot,
+            {bgcolor: opacity(iBear, 50), borderColor: "transparent", borderWidth: 1, borderStyle: "solid",
+             tooltip: "Sell activity: " + tostring(round(100 * (1 - vBuy))) + "% of the leg volume"});
+          obActH[obV] = 1;
+        }
+        // mid-line dashed from the origin to one bar past the current bar;
+        // metrics tag left-anchored at its end
+        if (obShowMid) {
+          obMidH[obV] = line.new(vSrcT, vMid, vExtT, vMid, {color: opacity(vLineColor, 70), width: 1, style: "dashed"});
+        }
+        if (obShowMetrics) {
+          obTagH[obV] = label.new(vExtT, vMid, "", {color: vLineColor, bgcolor: "transparent", size: obChipSize, stickyRight: true});
+          obTagTxt[obV] = "";
+        }
+        obDrawn[obV] = 1;
+        obDrawnTotal = obDrawnTotal + 1;
+      }
+    } else {
+      if (vWasDrawn) { obDropDrawings(obV); }
+    }
+  }
+  // Right edges follow the current bar (last bar only); readouts are
+  // refreshed when the kept window's volume changes (their share term) and on
+  // the last bar.
+  var obWinChanged = obWinVol != obWinVolPrev;
+  obWinVolPrev = obWinVol;
+  if (isLastBar || (obWinChanged && obShowMetrics)) {
+    for (var obM = 0; obM < obDrawnIdx.length; obM = obM + 1) {
+      var mi = obDrawnIdx[obM];
+      var mMid = (obBot[mi] + obTop[mi]) / 2;
+      if (isLastBar) {
+        var mExtT = d.time[0] + obMidExt * currentInterval;
+        if (obBrkOn[mi] == 1) { obBrkH[mi].set_rightbottom(d.time[0], obBot[mi]); }
+        else { obBoxH[mi].set_rightbottom(d.time[0], obBot[mi]); }
+        if (obActH[mi] == 1) {
+          var mBuy = obBuyVol[mi] / obVol[mi];
+          obBuyH[mi].set_rightbottom(obActEnd(obSrcBar[mi], mBuy), mMid);
+          obSellH[mi].set_rightbottom(obActEnd(obSrcBar[mi], 1 - mBuy), obBot[mi]);
+        }
+        if (obShowMid) { obMidH[mi].set_xy2(mExtT, mMid); }
+        if (obShowMetrics) { obTagH[mi].set_xy(mExtT, mMid); }
+      }
+      if (obShowMetrics) {
+        var mShare = obWinVol > 0 ? round(100 * obVol[mi] / obWinVol) : 0;
+        var mText = obFmtVol(obVol[mi]) + " (" + tostring(mShare) + "%)";
+        if (mText != obTagTxt[mi]) { obTagH[mi].set_text(mText); obTagTxt[mi] = mText; }
+      }
+    }
+  }
+
+  // Creation pins (Event dots and pins): a small square at the far edge of the new
+  // block on its creation (break) bar; conversion crosses at the block
+  // midpoint on the bar it turns into a breaker. Series plots: no drawing cost.
+  if (showEventMarkers) {
+    plotShape(value=obBullPin, shape="square", colors=[obBullColor], width=5, location="absolute", fill=true,
+      label=["Bullish block pin"], desc=["Creation pin: close broke the armed swing high; the square sits on the new block's bottom edge."]);
+    plotShape(value=obBearPin, shape="square", colors=[obBearColor], width=5, location="absolute", fill=true,
+      label=["Bearish block pin"], desc=["Creation pin: close broke the armed swing low; the square sits on the new block's top edge."]);
+    plotShape(value=obBullCross, shape="cross", colors=[obBullBrkColor], width=6, location="absolute",
+      label=["Bullish breaker cross"], desc=["Conversion cross: a bullish order block was mitigated and lives on as a breaker."]);
+    plotShape(value=obBearCross, shape="cross", colors=[obBearBrkColor], width=6, location="absolute",
+      label=["Bearish breaker cross"], desc=["Conversion cross: a bearish order block was mitigated and lives on as a breaker."]);
+  }
+}
+
+// ============================================================================
+// IMBALANCES (FVG / VOLUME IMBALANCE / OPENING GAP)
+// ============================================================================
+// FVG: this bar's low strictly above the high from two bars ago AND the middle
+// candle closed above that high (mirror for bearish); the area is the wick
+// gap. Volume Imbalance: two adjacent candles whose bodies do not overlap
+// while their wicks do; area = the body gap. Opening Gap: two adjacent
+// candles whose wicks do not overlap at all; area = the body gap. Per bar
+// every live area is tested first (Close = the candle BODY through the far
+// edge, Wick = wick through it, Average = body through the midpoint, None =
+// never), mitigated areas pulse and are removed, then this bar's detection is
+// inserted. The buffer keeps the newest 200 areas.
+type ImbArea {
+  top: number,
+  bottom: number,
+  side: number,
+  bornT: number
+}
+func imbMitigated(mode, side, top, bottom, bLo, bHi, lo, hi) {
+  if (mode == "None") { return false; }
+  if (mode == "Close") {
+    if (side == 1) { return bLo < bottom; }
+    return bHi > top;
+  }
+  if (mode == "Wick") {
+    if (side == 1) { return lo < bottom; }
+    return hi > top;
+  }
+  var mid = (top + bottom) / 2;
+  if (side == 1) { return bLo < mid; }
+  return bHi > mid;
+}
+
+var bodyLo0 = min(d.open[0], d.close[0]);
+var bodyHi0 = max(d.open[0], d.close[0]);
+var bodyLo1 = 0;
+var bodyHi1 = 0;
+if (barNo > 0) {
+  bodyLo1 = min(d.open[1], d.close[1]);
+  bodyHi1 = max(d.open[1], d.close[1]);
+}
+var detSide = 0;
+var detTop = 0;
+var detBottom = 0;
+var detLeftT = 0;
+if (imbalanceType == "FVG") {
+  if (barNo >= 2) {
+    if (d.low[0] > d.high[2] && d.close[1] > d.high[2]) {
+      detSide = 1; detTop = d.low[0]; detBottom = d.high[2]; detLeftT = d.time[2];
+    } else {
+      if (d.high[0] < d.low[2] && d.close[1] < d.low[2]) {
+        detSide = -1; detTop = d.low[2]; detBottom = d.high[0]; detLeftT = d.time[2];
+      }
+    }
+  }
+}
+if (imbalanceType == "Volume Imbalance") {
+  if (barNo >= 1) {
+    if (d.high[1] < bodyLo0 && d.low[0] < d.high[1]) {
+      detSide = 1; detTop = bodyLo0; detBottom = bodyHi1; detLeftT = d.time[1];
+    } else {
+      if (d.high[0] < bodyLo1 && d.low[1] < d.high[0]) {
+        detSide = -1; detTop = bodyLo1; detBottom = bodyHi0; detLeftT = d.time[1];
+      }
+    }
+  }
+}
+if (imbalanceType == "Opening Gap") {
+  if (barNo >= 1) {
+    if (d.low[0] > d.high[1]) {
+      detSide = 1; detTop = bodyLo0; detBottom = bodyHi1; detLeftT = d.time[1];
+    } else {
+      if (d.high[0] < d.low[1]) {
+        detSide = -1; detTop = bodyLo1; detBottom = bodyHi0; detLeftT = d.time[1];
+      }
+    }
+  }
+}
+var detKeep = detSide != 0 && (imbThreshold <= 0 || (detTop - detBottom) > imbThreshold * atr200);
+
+// imbLive holds the area records, imbBoxes the matching box handles at the
+// same index (a struct field cannot hold a drawing handle), imbMids the
+// mid-line handles with imbMidOn flagging which areas carry one: the newest
+// imbMidCap live areas do (the line budget is shared by every feature).
+// Newest last.
+persist imbLive = [];
+persist imbBoxes = [];
+persist imbMids = [];
+persist imbMidOn = [];
+persist imbMidCount = 0;
+var imbMidCap = 120;
+// Remove the area at k with its drawings.
+func imbDropAt(k) {
+  imbBoxes[k].delete();
+  if (imbMidOn[k] == 1) { imbMids[k].delete(); imbMidCount = imbMidCount - 1; }
+  imbBoxes.removeAt(k); imbMids.removeAt(k); imbMidOn.removeAt(k); imbLive.removeAt(k);
+}
+var newBullImb = false;
+var newBearImb = false;
+var mitBullImb = false;
+var mitBearImb = false;
+var mitBullLvl = na;
+var mitBearLvl = na;
+// Order Flow: a fill on flow in the fill's direction (a bullish gap is filled
+// from above, on selling; a bearish gap from below, on buying)
+var ofFillBullFlow = false; var ofFillBearFlow = false;
+var imbTypeWord = imbalanceType == "FVG" ? "FVG" : (imbalanceType == "Volume Imbalance" ? "volume imbalance" : "opening gap");
+
+if (showImbalances) {
+  // 1. sweep the live buffer: test, pulse, remove (newest first so removal
+  //    never disturbs the indices still to be visited)
+  for (var imbK = imbLive.length - 1; imbK >= 0; imbK = imbK - 1) {
+    var imbA = imbLive[imbK];
+    if (imbMitigated(imbMitigation, imbA.side, imbA.top, imbA.bottom, bodyLo0, bodyHi0, d.low[0], d.high[0])) {
+      if (imbA.side == 1) { mitBullImb = true; mitBullLvl = imbA.bottom; } else { mitBearImb = true; mitBearLvl = imbA.top; }
+      imbDropAt(imbK);
+    }
+  }
+  // 2. insert this bar's detection. A same-bar mitigation (possible only in
+  //    Wick mode, on a Volume Imbalance whose upper wick dips below the lower
+  //    body) pulses both events and never enters the buffer.
+  if (detKeep) {
+    if (detSide == 1) { newBullImb = true; } else { newBearImb = true; }
+    if (imbMitigated(imbMitigation, detSide, detTop, detBottom, bodyLo0, bodyHi0, d.low[0], d.high[0])) {
+      if (detSide == 1) { mitBullImb = true; mitBullLvl = detBottom; } else { mitBearImb = true; mitBearLvl = detTop; }
+    } else {
+      var imbColor = detSide == 1 ? imbBullColor : imbBearColor;
+      imbLive.push(ImbArea.new(top=detTop, bottom=detBottom, side=detSide, bornT=detLeftT));
+      var imbRightT = d.time[0] + imbExtend * currentInterval;
+      // thin translucent box: faint fill, fainter solid edge, extended right;
+      // graded by the volume shelf when the ladder is there: fast fill = dashed
+      // edge, sticky = stronger fill, both with the numbers in the tooltip
+      var gapGrade = ofGapVerdict(detBottom, detTop);
+      if (gapGrade == 0) {
+        imbBoxes.push(box.new(detLeftT, detTop, imbRightT, detBottom,
+          {bgcolor: opacity(imbColor, 16), borderColor: opacity(imbColor, 40), borderWidth: 1, borderStyle: "solid"}));
+      } else {
+        var gapTip = (detSide == 1 ? "Bullish " : "Bearish ") + imbTypeWord + (gapGrade == 1 ? ": fast fill, thin shelf (" : ": sticky, high-volume node (") + "heaviest cell " + tostring(round(100 * gapTipMax / gapTipTypical) / 100) + " x typical)";
+        if (gapGrade == 1) {
+          imbBoxes.push(box.new(detLeftT, detTop, imbRightT, detBottom,
+            {bgcolor: opacity(imbColor, 16), borderColor: opacity(imbColor, 55), borderWidth: 1, borderStyle: "dashed", tooltip: gapTip}));
+        } else {
+          imbBoxes.push(box.new(detLeftT, detTop, imbRightT, detBottom,
+            {bgcolor: opacity(imbColor, 28), borderColor: opacity(imbColor, 60), borderWidth: 1, borderStyle: "solid", tooltip: gapTip}));
+        }
+      }
+      // dashed mid-line at the area's average level, spanning the box; the
+      // oldest mid-line gives way when the newest imbMidCap already carry one
+      if (imbMidCount >= imbMidCap) {
+        for (var imbO = 0; imbO < imbMidOn.length; imbO = imbO + 1) {
+          if (imbMidOn[imbO] == 1) { imbMids[imbO].delete(); imbMidOn[imbO] = 0; imbMidCount = imbMidCount - 1; break; }
+        }
+      }
+      var imbMidLvl = (detTop + detBottom) / 2;
+      imbMids.push(line.new(detLeftT, imbMidLvl, imbRightT, imbMidLvl, {color: opacity(imbColor, 60), width: 1, style: "dashed"}));
+      imbMidOn.push(1);
+      imbMidCount = imbMidCount + 1;
+      // Buffer: newest 200 areas, oldest discarded silently (no pulse).
+      if (imbLive.length > 200) { imbDropAt(0); }
+    }
+  }
+  // Order Flow: the fill's direction against the bar's delta share
+  ofFillBullFlow = ofGapGrade && mitBullImb && ofHasFlow && ofShare <= 0 - ofThr;
+  ofFillBearFlow = ofGapGrade && mitBearImb && ofHasFlow && ofShare >= ofThr;
+  // Fill marks (off by default): a cross at the breached edge on the bar
+  // that did it (a series plot, so it costs no drawings); with the grades on,
+  // a fill on flow in its direction adds a larger x-cross.
+  if (imbShowMitigation) {
+    plotShape(value=mitBullLvl, shape="cross", location="absolute", colors=[imbBullColor], width=6,
+      label=["Bullish gap fill mark"],
+      desc=["Cross at the bottom edge of a bullish imbalance on the bar that mitigated it."]);
+    plotShape(value=mitBearLvl, shape="cross", location="absolute", colors=[imbBearColor], width=6,
+      label=["Bearish gap fill mark"],
+      desc=["Cross at the top edge of a bearish imbalance on the bar that mitigated it."]);
+    if (ofGapGrade) {
+      plotShape(value=ofFillBullFlow ? mitBullLvl : na, shape="xcross", location="absolute", colors=[opacity(imbBullColor, 85)], width=8,
+        label=["Bullish gap filled on selling"],
+        desc=["A bullish imbalance filled on a bar whose delta share was net selling beyond the participation threshold."]);
+      plotShape(value=ofFillBearFlow ? mitBearLvl : na, shape="xcross", location="absolute", colors=[opacity(imbBearColor, 85)], width=8,
+        label=["Bearish gap filled on buying"],
+        desc=["A bearish imbalance filled on a bar whose delta share was net buying beyond the participation threshold."]);
+    }
+  }
+}
+
+// ============================================================================
+// LIQUIDITY TREND LINES + CHART PATTERNS
+// ============================================================================
+// Trend lines: wick pivots two bars either side (left ties allowed, right
+// strict) confirm two bars late. A pivot low that made a LOWER low than the
+// pivot low before it becomes the bullish anchor; a later pivot low that
+// makes a HIGHER low is a candidate end. The segment is a support trend line
+// when no close between them fell below it and at least one wick did. Same
+// anchor as the live line: re-fit (update); otherwise a new line replaces the
+// live one. Bearish mirrors this on pivot highs. A line is broken by the
+// first close beyond it; the test is skipped on same-side pivot-confirm bars,
+// and each such bar that fires no event lags the projected line by one bar.
+// One live line per side, one break per line, an update re-arms. Zone =
+// 0.25 x ATR(200) at the confirm bar.
+//
+// Patterns: symmetric body pivots (half-length 2 x Period) merged into an
+// alternating zigzag; the last four swings give the upper line (two highs)
+// and the lower line (two lows). Flat = |slope| < 0.25 x |other|: flat
+// bottom + falling top = Descending Triangle, flat top + rising bottom =
+// Ascending Triangle; sU < 0 < sL = Symmetrical Triangle; megaphone = None;
+// same sign: width ratio < 2/3 = wedge, > 3/2 (or a negative first width) =
+// broadening wedge, else None. Converging patterns draw to the rounded apex,
+// diverging ones from it, None runs both lines to the current bar as general
+// S/R. Zone = 0.5 x ATR(200) at the current bar. Double Top / Double Bottom
+// and Head & Shoulders are NOT emitted (no rule survived the data).
+var lpActive = tlShow || patShow;
+persist hT = [];
+persist hH = [];
+persist hL = [];
+persist hC = [];
+persist barMs = 0;
+if (lpActive) {
+  hT.push(d.time[0]);
+  hH.push(d.high[0]);
+  hL.push(d.low[0]);
+  hC.push(d.close[0]);
+  if (barNo > 0) {
+    var stepMs = hT[barNo] - hT[barNo - 1];
+    if (stepMs > 0 && (barMs == 0 || stepMs < barMs)) { barMs = stepMs; }
+  }
+}
+// bar index -> time, extrapolated past either end of the history
+func lpTimeAt(x) {
+  if (x >= 0 && x < hT.length) { return hT[x]; }
+  return hT[barNo] + (x - barNo) * barMs;
+}
+
+// ------------------------------------------------------------ trend lines ----
+// Per-side state, index 0 = support (pivot lows), 1 = resistance (pivot highs).
+persist tlHavePrev = [false, false];
+persist tlPrevPrice = [0, 0];
+persist tlAnchorBar = [-1, -1];
+persist tlAnchorPrice = [0, 0];
+persist tlHas = [false, false];
+persist tlA = [0, 0];
+persist tlAPrice = [0, 0];
+persist tlSlope = [0, 0];
+persist tlC = [0, 0];
+persist tlLag = [0, 0];
+persist tlBroken = [false, false];
+persist tlWidth = [0, 0];
+// drawing holders (newest last; index-aligned main / zone edge / fill). No
+// text: the line's color and slope say which side it is.
+persist tlBullMain = [];
+persist tlBullEdge = [];
+persist tlBullFill = [];
+persist tlBearMain = [];
+persist tlBearEdge = [];
+persist tlBearFill = [];
+// Break tails: a broken line keeps a three-bar tail past the break, drawn on
+// the three real bars after it as they close from the line frozen at the
+// break. Tails live in one FIFO queue keyed by group id so an update
+// re-fitting that group or an eviction cancels the tail.
+persist tlGroupSeq = 0;
+persist tlBullIds = [];
+persist tlBearIds = [];
+persist tlTailMain = [];
+persist tlTailEdge = [];
+persist tlTailId = [];
+persist tlTailLeft = [];
+persist tlTailBar = [];
+persist tlTailY = [];
+persist tlTailSlope = [];
+persist tlTailOff = [];
+
+// per-bar event flags (alerts + markers)
+var tlNewBull = false;
+var tlNewBear = false;
+var tlUpdBull = false;
+var tlUpdBear = false;
+var tlBrkBull = false;
+var tlBrkBear = false;
+var tlBrkBullY = na;
+var tlBrkBearY = na;
+
+func tlLineAt(s, x) {
+  return tlAPrice[s] + tlSlope[s] * (x - tlA[s]);
+}
+func tlZoneOffset(s) {
+  return s == 0 ? tlWidth[s] : -tlWidth[s];
+}
+func tlHasDrawing(s) {
+  return s == 0 ? tlBullMain.length > 0 : tlBearMain.length > 0;
+}
+func tlSetEnd(s, x, y) {
+  var off = tlZoneOffset(s);
+  if (s == 0) {
+    tlBullMain[tlBullMain.length - 1].set_xy2(x, y);
+    tlBullEdge[tlBullEdge.length - 1].set_xy2(x, y + off);
+  } else {
+    tlBearMain[tlBearMain.length - 1].set_xy2(x, y);
+    tlBearEdge[tlBearEdge.length - 1].set_xy2(x, y + off);
+  }
+}
+func tlSetStart(s, x, y) {
+  var off = tlZoneOffset(s);
+  if (s == 0) {
+    tlBullMain[tlBullMain.length - 1].set_xy1(x, y);
+    tlBullEdge[tlBullEdge.length - 1].set_xy1(x, y + off);
+  } else {
+    tlBearMain[tlBearMain.length - 1].set_xy1(x, y);
+    tlBearEdge[tlBearEdge.length - 1].set_xy1(x, y + off);
+  }
+}
+func tlSetStyle(s, sty, w) {
+  if (s == 0) {
+    tlBullMain[tlBullMain.length - 1].set_style(sty);
+    tlBullMain[tlBullMain.length - 1].set_width(w);
+  } else {
+    tlBearMain[tlBearMain.length - 1].set_style(sty);
+    tlBearMain[tlBearMain.length - 1].set_width(w);
+  }
+}
+func tlNewestId(s) {
+  return s == 0 ? tlBullIds[tlBullIds.length - 1] : tlBearIds[tlBearIds.length - 1];
+}
+// cancel any pending tail on a group (its drawing was re-anchored or deleted)
+func tlTailKill(id) {
+  for (var q = 0; q < tlTailId.length; q = q + 1) {
+    if (tlTailId[q] == id) { tlTailLeft[q] = 0; }
+  }
+}
+// arm a three-bar tail on side s's newest group from the line frozen at the break
+func tlTailArm(s, yBrk) {
+  tlTailKill(tlNewestId(s));
+  if (s == 0) {
+    tlTailMain.push(tlBullMain[tlBullMain.length - 1]);
+    tlTailEdge.push(tlBullEdge[tlBullEdge.length - 1]);
+  } else {
+    tlTailMain.push(tlBearMain[tlBearMain.length - 1]);
+    tlTailEdge.push(tlBearEdge[tlBearEdge.length - 1]);
+  }
+  tlTailId.push(tlNewestId(s));
+  tlTailLeft.push(3);
+  tlTailBar.push(barNo);
+  tlTailY.push(yBrk);
+  tlTailSlope.push(tlSlope[s]);
+  tlTailOff.push(tlZoneOffset(s));
+}
+// one bar of every live tail: its drawing ends on this (real) bar, on the
+// frozen line. Tails finish in arm order (all are three bars), so finished
+// and cancelled entries are retired from the head of the queue.
+func tlTailStep() {
+  for (var q = 0; q < tlTailId.length; q = q + 1) {
+    if (tlTailLeft[q] > 0) {
+      var y = tlTailY[q] + tlTailSlope[q] * (barNo - tlTailBar[q]);
+      tlTailMain[q].set_xy2(hT[barNo], y);
+      tlTailEdge[q].set_xy2(hT[barNo], y + tlTailOff[q]);
+      tlTailLeft[q] = tlTailLeft[q] - 1;
+    }
+  }
+  while (tlTailId.length > 0 && tlTailLeft[0] == 0) {
+    tlTailMain.shift(); tlTailEdge.shift(); tlTailId.shift(); tlTailLeft.shift();
+    tlTailBar.shift(); tlTailY.shift(); tlTailSlope.shift(); tlTailOff.shift();
+  }
+}
+// Pruning rule: only the newest tlShowLast lines per side own drawings (main
+// line + zone edge + fill); the oldest group is deleted when a new line
+// arrives past the cap (a tail pending on it is dropped). An update re-fits
+// the newest group in place.
+func tlAddGroup(s, x1, y1, x2, y2) {
+  var col = s == 0 ? tlBullColor : tlBearColor;
+  var off = tlZoneOffset(s);
+  if (s == 0) {
+    if (tlBullMain.length >= tlShowLast) {
+      tlTailKill(tlBullIds[0]);
+      tlBullFill[0].delete(); tlBullMain[0].delete(); tlBullEdge[0].delete();
+      tlBullFill.shift(); tlBullMain.shift(); tlBullEdge.shift(); tlBullIds.shift();
+    }
+  } else {
+    if (tlBearMain.length >= tlShowLast) {
+      tlTailKill(tlBearIds[0]);
+      tlBearFill[0].delete(); tlBearMain[0].delete(); tlBearEdge[0].delete();
+      tlBearFill.shift(); tlBearMain.shift(); tlBearEdge.shift(); tlBearIds.shift();
+    }
+  }
+  // 2px main line, faint dotted zone edge, light fill (alpha 0..1 here)
+  var main = line.new(x1, y1, x2, y2, {color: col, width: 2, style: "solid"});
+  var edge = line.new(x1, y1 + off, x2, y2 + off, {color: opacity(col, 35), width: 1, style: "dotted"});
+  var fill = linefill.new(main, edge, {color: col, opacity: 0.1});
+  tlGroupSeq = tlGroupSeq + 1;
+  if (s == 0) {
+    tlBullMain.push(main); tlBullEdge.push(edge); tlBullFill.push(fill); tlBullIds.push(tlGroupSeq);
+  } else {
+    tlBearMain.push(main); tlBearEdge.push(edge); tlBearFill.push(fill); tlBearIds.push(tlGroupSeq);
+  }
+}
+
+if (tlShow) {
+  // pivot(2,2) on wicks, confirmed on this bar for the bar two back
+  var pv = barNo - 2;
+  var isPivotHigh = false;
+  var isPivotLow = false;
+  if (barNo >= 4) {
+    isPivotHigh = hH[pv - 2] <= hH[pv] && hH[pv - 1] <= hH[pv] && hH[pv + 1] < hH[pv] && hH[pv + 2] < hH[pv];
+    isPivotLow = hL[pv - 2] >= hL[pv] && hL[pv - 1] >= hL[pv] && hL[pv + 1] > hL[pv] && hL[pv + 2] > hL[pv];
+  }
+  tlTailStep();
+  for (var s = 0; s < 2; s = s + 1) {
+    var isBull = s == 0;
+    var piv = isBull ? isPivotLow : isPivotHigh;
+    var evented = false;
+    if (piv) {
+      var pPrice = isBull ? hL[pv] : hH[pv];
+      var dPrev = tlHavePrev[s] ? (isBull ? pPrice - tlPrevPrice[s] : tlPrevPrice[s] - pPrice) : 0;
+      var isDeeper = tlHavePrev[s] && dPrev < 0;
+      if (!isDeeper && tlAnchorBar[s] >= 0 && (isBull ? pPrice > tlAnchorPrice[s] : pPrice < tlAnchorPrice[s])) {
+        // candidate line anchor -> this pivot: gate on closes and wicks in between
+        var A = tlAnchorBar[s];
+        var slope = (pPrice - tlAnchorPrice[s]) / (pv - A);
+        var closesBeyond = 0;
+        var wicksBeyond = 0;
+        for (var u = A + 1; u < pv; u = u + 1) {
+          var lv = tlAnchorPrice[s] + slope * (u - A);
+          if (isBull ? hC[u] < lv : hC[u] > lv) { closesBeyond = closesBeyond + 1; }
+          if (isBull ? hL[u] < lv : hH[u] > lv) { wicksBeyond = wicksBeyond + 1; }
+        }
+        if (closesBeyond == 0 && wicksBeyond >= 1) {
+          var isUpd = tlHas[s] && tlA[s] == A;
+          // a new line retires the live one: its drawing ends on the previous bar
+          if (tlHas[s] && !isUpd && !tlBroken[s] && tlHasDrawing(s)) {
+            tlSetEnd(s, hT[barNo - 1], tlLineAt(s, barNo - 1 - tlLag[s]));
+          }
+          tlHas[s] = true;
+          tlA[s] = A;
+          tlAPrice[s] = tlAnchorPrice[s];
+          tlSlope[s] = slope;
+          tlC[s] = barNo;
+          tlLag[s] = 0;
+          tlBroken[s] = false;
+          tlWidth[s] = 0.25 * atr200;
+          if (isBull) { if (isUpd) { tlUpdBull = true; } else { tlNewBull = true; } }
+          else { if (isUpd) { tlUpdBear = true; } else { tlNewBear = true; } }
+          evented = true;
+          var yEnd = tlLineAt(s, barNo);
+          if (isUpd && tlHasDrawing(s)) {
+            tlTailKill(tlNewestId(s));
+            tlSetStart(s, hT[A], tlAPrice[s]);
+            tlSetEnd(s, hT[barNo], yEnd);
+            tlSetStyle(s, "solid", 2);
+          } else {
+            tlAddGroup(s, hT[A], tlAPrice[s], hT[barNo], yEnd);
+          }
+        }
+      }
+      if (isDeeper) { tlAnchorBar[s] = pv; tlAnchorPrice[s] = pPrice; }
+      tlHavePrev[s] = true;
+      tlPrevPrice[s] = pPrice;
+      if (tlHas[s] && !evented) { tlLag[s] = tlLag[s] + 1; }
+    }
+    if (tlHas[s] && !tlBroken[s] && barNo > tlC[s]) {
+      var yNow = tlLineAt(s, barNo - tlLag[s]);
+      if (!piv && (isBull ? d.close[0] < yNow : d.close[0] > yNow)) {
+        // broken: the drawing turns dashed, ends on this bar and grows a
+        // three-bar tail over the next three closed bars
+        tlBroken[s] = true;
+        if (isBull) { tlBrkBull = true; tlBrkBullY = yNow; } else { tlBrkBear = true; tlBrkBearY = yNow; }
+        if (tlHasDrawing(s)) {
+          tlSetEnd(s, hT[barNo], yNow);
+          tlSetStyle(s, "dashed", 1);
+          tlTailArm(s, yNow);
+        }
+      } else if (isLastBar && tlHasDrawing(s)) {
+        // live line: extend to the current bar (drawn once, on the last bar)
+        tlSetEnd(s, hT[barNo], yNow);
+      }
+    }
+  }
+}
+
+// --------------------------------------------------------------- patterns ----
+var patLen = 2 * tonumber(patPeriodSel);
+persist bodyHi = [];
+persist bodyLo = [];
+persist zzKind = [];
+persist zzBar = [];
+persist zzPrice = [];
+persist patName = "None";
+persist patLines = [];
+persist patEdges = [];
+persist patFills = [];
+var patChanged = false;
+
+func zzPush(k, x, y) {
+  var m = zzKind.length;
+  if (m > 0 && zzKind[m - 1] == k) {
+    if ((k == 1 && y > zzPrice[m - 1]) || (k == -1 && y < zzPrice[m - 1])) { zzBar[m - 1] = x; zzPrice[m - 1] = y; }
+  } else {
+    zzKind.push(k); zzBar.push(x); zzPrice.push(y);
+    if (zzKind.length > 40) { zzKind.shift(); zzBar.shift(); zzPrice.shift(); }
+  }
+}
+
+if (patShow) {
+  bodyHi.push(math.max(d.open[0], d.close[0]));
+  bodyLo.push(math.min(d.open[0], d.close[0]));
+  // symmetric body pivots: left ties allowed, right strict; confirmed patLen bars late
+  var cb = barNo - patLen;
+  var bodyPH = false;
+  var bodyPL = false;
+  if (barNo >= 2 * patLen) {
+    bodyPH = true;
+    bodyPL = true;
+    for (var j = cb - patLen; j < cb; j = j + 1) {
+      if (bodyHi[j] > bodyHi[cb]) { bodyPH = false; }
+      if (bodyLo[j] < bodyLo[cb]) { bodyPL = false; }
+    }
+    for (var j2 = cb + 1; j2 <= barNo; j2 = j2 + 1) {
+      if (bodyHi[j2] >= bodyHi[cb]) { bodyPH = false; }
+      if (bodyLo[j2] <= bodyLo[cb]) { bodyPL = false; }
+    }
+  }
+  if (bodyPH) { zzPush(1, cb, bodyHi[cb]); }
+  if (bodyPL) { zzPush(-1, cb, bodyLo[cb]); }
+
+  var m4 = zzKind.length;
+  if (m4 >= 4) {
+    // last four swings: two highs and two lows in time order
+    var hx1 = 0; var hy1 = 0; var hx2 = 0; var hy2 = 0;
+    var lx1 = 0; var ly1 = 0; var lx2 = 0; var ly2 = 0;
+    var nh = 0; var nl = 0;
+    for (var patQ = m4 - 4; patQ < m4; patQ = patQ + 1) {
+      if (zzKind[patQ] == 1) {
+        if (nh == 0) { hx1 = zzBar[patQ]; hy1 = zzPrice[patQ]; } else { hx2 = zzBar[patQ]; hy2 = zzPrice[patQ]; }
+        nh = nh + 1;
+      } else {
+        if (nl == 0) { lx1 = zzBar[patQ]; ly1 = zzPrice[patQ]; } else { lx2 = zzBar[patQ]; ly2 = zzPrice[patQ]; }
+        nl = nl + 1;
+      }
+    }
+    var sU = (hy2 - hy1) / (hx2 - hx1);
+    var sL = (ly2 - ly1) / (lx2 - lx1);
+    var firstBar = math.min(hx1, lx1);
+    var lastBar = math.max(hx2, lx2);
+    var w0 = (hy1 + sU * (firstBar - hx1)) - (ly1 + sL * (firstBar - lx1));
+    var w1 = (hy1 + sU * (lastBar - hx1)) - (ly1 + sL * (lastBar - lx1));
+    var aU = math.abs(sU);
+    var aL = math.abs(sL);
+    var flatTop = aU < 0.25 * aL;
+    var flatBottom = aL < 0.25 * aU;
+    var name = "None";
+    if (flatBottom && sU < 0) { name = "Descending Triangle"; }
+    else if (flatTop && sL > 0) { name = "Ascending Triangle"; }
+    else if (sU < 0 && sL > 0) { name = "Symmetrical Triangle"; }
+    else if (sU > 0 && sL < 0) { name = "None"; }
+    else if (sU == 0 || sL == 0) { name = "None"; }
+    else {
+      var r = w1 / w0;
+      if (w0 > 0 && r < 2 / 3) { name = sU < 0 ? "Falling Wedge" : "Rising Wedge"; }
+      else if (w0 <= 0 || r > 1.5) { name = sU < 0 ? "Descending Broadening Wedge" : "Ascending Broadening Wedge"; }
+      else { name = "None"; }
+    }
+    if (name != patName) { patChanged = true; }
+    patName = name;
+
+    if (isLastBar) {
+      // geometry: converging -> to the apex, diverging -> from the apex,
+      // None -> both lines to the current bar (general support / resistance)
+      var isNone = name == "None";
+      var apex = sU != sL ? ((ly1 - sL * lx1) - (hy1 - sU * hx1)) / (sU - sL) : 0;
+      var apexBar = math.ceil(apex - 0.5);
+      var x1 = firstBar;
+      var x2 = barNo;
+      if (!isNone && sU != sL) {
+        if (sU < sL) { x2 = apexBar; } else { x1 = apexBar; }
+      }
+      var yU1 = hy1 + sU * (x1 - hx1);
+      var yU2 = hy1 + sU * (x2 - hx1);
+      var yL1 = ly1 + sL * (x1 - lx1);
+      var yL2 = ly1 + sL * (x2 - lx1);
+      var wz = 0.5 * atr200;
+      var tx1 = lpTimeAt(x1);
+      var tx2 = lpTimeAt(x2);
+      var sty = isNone ? "dotted" : "solid";
+      var wid = isNone ? 1 : 2;
+      if (patLines.length == 0) {
+        patLines.push(line.new(tx1, yU1, tx2, yU2, {color: patUpperColor, width: wid, style: sty}));
+        patLines.push(line.new(tx1, yL1, tx2, yL2, {color: patLowerColor, width: wid, style: sty}));
+        if (patShowZones) {
+          patEdges.push(line.new(tx1, yU1 + wz, tx2, yU2 + wz, {color: opacity(patUpperColor, 35), width: 1, style: "dotted"}));
+          patEdges.push(line.new(tx1, yL1 - wz, tx2, yL2 - wz, {color: opacity(patLowerColor, 35), width: 1, style: "dotted"}));
+          patFills.push(linefill.new(patLines[0], patEdges[0], {color: patUpperColor, opacity: 0.1}));
+          patFills.push(linefill.new(patLines[1], patEdges[1], {color: patLowerColor, opacity: 0.1}));
+        }
+      } else {
+        patLines[0].set_xy1(tx1, yU1); patLines[0].set_xy2(tx2, yU2); patLines[0].set_style(sty); patLines[0].set_width(wid);
+        patLines[1].set_xy1(tx1, yL1); patLines[1].set_xy2(tx2, yL2); patLines[1].set_style(sty); patLines[1].set_width(wid);
+        if (patShowZones) {
+          patEdges[0].set_xy1(tx1, yU1 + wz); patEdges[0].set_xy2(tx2, yU2 + wz);
+          patEdges[1].set_xy1(tx1, yL1 - wz); patEdges[1].set_xy2(tx2, yL2 - wz);
+        }
+      }
+    }
+  }
+}
+
+// -------------------------------------------------------------- dashboard ----
+// Off by default (Pattern table toggle); the pattern lines are the display.
+if (patShow && showPatternDashboard && dashLocation != "None" && isLastBar) {
+  var dashPos = dashLocation == "Bottom Right" ? "bottom_right" : "top_right";
+  var dashFont = dashSize == "Tiny" ? 9 : (dashSize == "Small" ? 11 : (dashSize == "Normal" ? 13 : 16));
+  var supportState = tlShow ? (tlHas[0] ? (tlBroken[0] ? "broken" : "live") : "none") : "off";
+  var resistanceState = tlShow ? (tlHas[1] ? (tlBroken[1] ? "broken" : "live") : "none") : "off";
+  plotTable(data=[["Pattern", patName], ["Support line", supportState], ["Resistance line", resistanceState]],
+    position=dashPos, headerColumn=true, fontSize=dashFont);
+}
+
+// Line break marks (off by default): a cross on the projected line value at
+// the break bar (series plots, no drawing cost).
+if (tlShow && tlShowBreaks) {
+  plotShape(value=tlBrkBullY, shape="cross", colors=[tlBullColor], width=6, location="absolute",
+    label=["Support line break"], desc=["Close broke below the support trend line; marker sits on the line's projected value."]);
+  plotShape(value=tlBrkBearY, shape="cross", colors=[tlBearColor], width=6, location="absolute",
+    label=["Resistance line break"], desc=["Close broke above the resistance trend line; marker sits on the line's projected value."]);
+}
+
+// ============================================================================
+// ALERTS (one per event, gated by the feature toggles; structure alerts fire
+// regardless of display)
+// ============================================================================
+alertcondition(condition=iBullBos, title="Bullish BOS (internal)", message="Bullish BOS (internal): close broke above the last internal swing high.");
+alertcondition(condition=iBullChoch, title="Bullish CHoCH (internal)", message="Bullish CHoCH (internal): trend flipped up through the last internal swing high.");
+alertcondition(condition=iBullChochPlus, title="Bullish CHoCH+ (internal)", message="Bullish CHoCH+ (internal): supported trend flip through the last internal swing high.");
+alertcondition(condition=iBearBos, title="Bearish BOS (internal)", message="Bearish BOS (internal): close broke below the last internal swing low.");
+alertcondition(condition=iBearChoch, title="Bearish CHoCH (internal)", message="Bearish CHoCH (internal): trend flipped down through the last internal swing low.");
+alertcondition(condition=iBearChochPlus, title="Bearish CHoCH+ (internal)", message="Bearish CHoCH+ (internal): supported trend flip through the last internal swing low.");
+alertcondition(condition=sBullBos, title="Bullish BOS (swing)", message="Bullish BOS (swing): close broke above the last swing high.");
+alertcondition(condition=sBullChoch, title="Bullish CHoCH (swing)", message="Bullish CHoCH (swing): trend flipped up through the last swing high.");
+alertcondition(condition=sBullChochPlus, title="Bullish CHoCH+ (swing)", message="Bullish CHoCH+ (swing): supported trend flip through the last swing high.");
+alertcondition(condition=sBearBos, title="Bearish BOS (swing)", message="Bearish BOS (swing): close broke below the last swing low.");
+alertcondition(condition=sBearChoch, title="Bearish CHoCH (swing)", message="Bearish CHoCH (swing): trend flipped down through the last swing low.");
+alertcondition(condition=sBearChochPlus, title="Bearish CHoCH+ (swing)", message="Bearish CHoCH+ (swing): supported trend flip through the last swing low.");
+
+alertcondition(condition=showEqhl && eqhFire, title="Equal highs found", message="Equal highs: two consecutive pivot highs within 0.1 x ATR(200).");
+alertcondition(condition=showEqhl && eqlFire, title="Equal lows found", message="Equal lows: two consecutive pivot lows within 0.1 x ATR(200).");
+alertcondition(condition=showGrabs && bullGrab, title="Bullish wick sweep", message="Bullish wick sweep (liquidity grab): wick below the last swing low, body held above it.");
+alertcondition(condition=showGrabs && bearGrab, title="Bearish wick sweep", message="Bearish wick sweep (liquidity grab): wick above the last swing high, body held below it.");
+
+alertcondition(condition=obBullCreated, title="New bullish order block", message="New bullish order block: close broke the armed swing high.");
+alertcondition(condition=obBearCreated, title="New bearish order block", message="New bearish order block: close broke the armed swing low.");
+alertcondition(condition=obBullMitigated, title="Bullish order block filled", message="Bullish order block filled and removed.");
+alertcondition(condition=obBearMitigated, title="Bearish order block filled", message="Bearish order block filled and removed.");
+alertcondition(condition=obBullBreaker, title="Bullish block turned breaker", message="A filled bullish order block lives on as a breaker.");
+alertcondition(condition=obBearBreaker, title="Bearish block turned breaker", message="A filled bearish order block lives on as a breaker.");
+alertcondition(condition=obWithinBull, title="Close inside bullish block", message="Close is inside a bullish order block or breaker.");
+alertcondition(condition=obWithinBear, title="Close inside bearish block", message="Close is inside a bearish order block or breaker.");
+alertcondition(condition=obBullEntered, title="Price tapped bullish block", message="Price entered a bullish order block.");
+alertcondition(condition=obBearEntered, title="Price tapped bearish block", message="Price entered a bearish order block.");
+
+alertcondition(condition=newBullImb, title="Bullish imbalance opened", message="New bullish imbalance: price left a gap below that has not been filled.");
+alertcondition(condition=newBearImb, title="Bearish imbalance opened", message="New bearish imbalance: price left a gap above that has not been filled.");
+alertcondition(condition=mitBullImb, title="Bullish imbalance filled", message="Bullish imbalance filled: price came back through the bottom of the gap.");
+alertcondition(condition=mitBearImb, title="Bearish imbalance filled", message="Bearish imbalance filled: price came back through the top of the gap.");
+
+alertcondition(condition=tlNewBull, title="Support line drawn", message="New support trend line confirmed.");
+alertcondition(condition=tlUpdBull, title="Support line refit", message="Support trend line redrawn on the same anchor.");
+alertcondition(condition=tlBrkBull, title="Support line broken", message="Close broke below the support trend line.");
+alertcondition(condition=tlNewBear, title="Resistance line drawn", message="New resistance trend line confirmed.");
+alertcondition(condition=tlUpdBear, title="Resistance line refit", message="Resistance trend line redrawn on the same anchor.");
+alertcondition(condition=tlBrkBear, title="Resistance line broken", message="Close broke above the resistance trend line.");
+alertcondition(condition=patChanged && patName != "None", title="Chart pattern changed", message="A new chart pattern classification is showing.");
+
+alertcondition(condition=inPremium, title="Close in premium", message="Close is inside the premium band of the trailing swing range.");
+alertcondition(condition=inDiscount, title="Close in discount", message="Close is inside the discount band of the trailing swing range.");
+
+// Order Flow grades (fire only where sided data exists)
+alertcondition(condition=ofThinBull, title="Bullish break on thin flow", message="A bullish structure break printed on thin or opposing participation.");
+alertcondition(condition=ofThinBear, title="Bearish break on thin flow", message="A bearish structure break printed on thin or opposing participation.");
+alertcondition(condition=ofRunBull, title="Bullish CHoCH on selling (run)", message="A bullish CHoCH printed while the break bar sold: a likely stop run rather than a reversal.");
+alertcondition(condition=ofRunBear, title="Bearish CHoCH on buying (run)", message="A bearish CHoCH printed while the break bar bought: a likely stop run rather than a reversal.");
+alertcondition(condition=ofFillBullFlow, title="Bullish gap filled on selling", message="A bullish imbalance filled on net selling beyond the participation threshold.");
+alertcondition(condition=ofFillBearFlow, title="Bearish gap filled on buying", message="A bearish imbalance filled on net buying beyond the participation threshold.");

@@ -1,0 +1,776 @@
+{
+  "PAXG": {
+    "asset_class": "non_crypto",
+    "reason": "Token tracks gold; outside the crypto-directional session universe",
+    "source": "https://www.paxos.com/paxgold",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:AAOI": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:AAPL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:AMAT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:AMD": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:AMZN": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:ARM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:ASML": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:AVGO": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BABA": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BB": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BE": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BIRD": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BMNR": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BOT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BRENTOIL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:BX": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:CBRS": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:COIN": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:COPPER": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:COST": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:CRCL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:CRWD": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:CRWV": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:CXMT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:DELL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:DKNG": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:DRAM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:EBAY": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:EUR": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:EWJ": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:EWT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:EWY": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:EWZ": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:GBP": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:GEV": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:GIGADEV": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:GME": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:GOLD": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:GOOGL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:HIMS": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:HOOD": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:HYUNDAI": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:IBM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:INTC": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:IREN": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:JP225": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:JPY": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:KIOXIA": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:KORU": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:KR200": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:LITE": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:LLY": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:LYTE": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MAGS": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:META": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MINIMAX": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MRNA": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MRVL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MSFT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MSTR": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:MU": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NATGAS": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NBIS": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NCLD": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NET": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NFLX": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NOK": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NOW": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:NVDA": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:ORCL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:PALLADIUM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:PLATINUM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:PLTR": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:PURRDAT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:QCOM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:QNT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:RDDT": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:RIVN": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:RKLB": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SAMSUNG": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SHAZ": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SHEIN": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SILVER": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SKHY": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SKHYNIX": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SMH": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SNDK": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SOFTBANK": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SOXL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SP500": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:SPCX": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:STRC": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:TSLA": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:TSM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:UNITREE": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:URNM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:USAR": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:WDC": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:WTIOIL": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:XBI": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:XLE": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:XYZ100": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:ZHIPU": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "xyz:ZM": {
+    "asset_class": "non_crypto",
+    "reason": "Non-crypto underlying documented in the deployer's specification index",
+    "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+    "verified_date": "2026-09-10"
+  },
+  "para:TOTAL2": {
+    "asset_class": "crypto",
+    "reason": "Crypto market-cap/dominance index; verify index contract units before sizing",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:OTHERS": {
+    "asset_class": "crypto",
+    "reason": "Crypto market-cap/dominance index; verify index contract units before sizing",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:BTCD": {
+    "asset_class": "crypto",
+    "reason": "Crypto market-cap/dominance index; verify index contract units before sizing",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:TTWO": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:SOFI": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:IGV": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:10Y": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:UNITREE": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:RDDT": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:SMCI": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:AAOI": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:LRCX": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:GLW": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:COHR": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:CRDO": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:STX": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:IREN": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:VST": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:TER": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:AVGO": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:CIEN": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:CRWD": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:NET": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  },
+  "para:MELI": {
+    "asset_class": "non_crypto",
+    "reason": "Equity, ETF or Treasury-yield underlying verified in the deployer product directory",
+    "source": "https://paragon.trade/products/",
+    "verified_date": "2026-09-10"
+  }
+}

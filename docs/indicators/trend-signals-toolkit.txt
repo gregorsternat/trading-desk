@@ -1,0 +1,1695 @@
+//@version=3
+// Trend Signals Toolkit
+//
+// One indicator, the whole trend kit: a trend-following signal engine with
+// two grades, exits, a counter-trend (fade) engine and tri-state candle
+// shading; five price overlays (an adaptive trailing stop, a reversion
+// ladder, a fast trend stepper, a slow trend keel and a lead / lag trail
+// cloud); a take-profit / stop-loss ladder anchored on any of them; and a
+// readout panel. A user adds this one script and gets everything; each
+// component is a settings section with its own display toggle, and
+// everything evaluates on bar close.
+//
+// Shared primitives, computed once per bar:
+//
+//   ATR(200): a Wilder average of true range, hardcoded 200 (the engine's
+//   atr builtin). Consumers: the trail cloud corridor ((width + 0.5) x),
+//   the keel corridors (speed x and 0.5 x that), the TP/SL spacing
+//   ((spacing / 2) x, frozen at each anchor).
+//
+//   The stepper (accelerating mirror-stop stepper on closes): one function
+//   with a state slot per instance; slot 1 draws the Trend Stepper overlay
+//   at its step-speed setting (slot 0 is spare).
+//
+//   The signal trigger: ratcheting volatility bands around the bar's average
+//   price (ohlc4), 1.9 x ATR(7) x width / 12 wide; a close through the
+//   active band flips the signal state. The trend basis (SMA 50 with a
+//   0.1 ATR(60) hysteresis), the momentum gauge (Wilder RSI over
+//   6 + width / 2 bars) and the 72-bar trend strength feed the signal
+//   grades, exits, fade entries, candle shades and the readout panel.
+//
+// Original implementation. Every feature is covered by a deterministic test harness on two
+// engine versions.
+//
+// Renderer facts (titan-charts-next 0.0.4-alpha.698, measured in the app by
+// harness/fill-probe.mjs): a two-value plotLine(fill=true) band fills with its
+// FIRST edge color while value1 > value2 and its SECOND edge color while
+// value1 < value2, at that edge string's own alpha (an rgba string passes
+// through, a plain hex renders at 0.4); the declared fill colors are ignored.
+// fillBetween applies its numeric opacity (0..1) and drops the color's alpha.
+// So every band below carries its fill alpha in its edge colors
+// (opacity(color, pct)) and every fillBetween passes pct / 100.
+//
+// Presentation: teal / rose signal triangles graded by fill (hollow = normal,
+// filled + glow = strong), sky / amber exit crosses, teal / lavender / rose-red
+// candles; a green / orange trail with a fading buffer; a violet / sky ladder
+// with an outer-denser fill; a lime / coral stepper; an indigo / gold keel
+// with a band to price; a cyan / terracotta cloud with a dotted slate lag
+// line; mint / salmon TP / SL bands with price tags. Markers ride series plots
+// (no drawings); the only drawings are the TP / SL price tags and level lines
+// on the last bar.
+//
+// Series budget: every marker pair shares one plot (absolute placement with
+// a per-bar color), every ladder band and TP / SL band is one two-value plot
+// with its fill, so the whole toolkit with every option on declares 32
+// outputs. Every alert condition is declared unconditionally for the
+// components in use (the chart drops the per-bar alert ledger before
+// validation).
+define(title="Trend Signals Toolkit", position="onchart", axis=false);
+
+timeseries d = ohlcv(symbol=currentSymbol, exchange=currentExchange);
+
+// ============================================================================
+// SETTINGS (our own panel order; every component has its display toggle)
+// ============================================================================
+
+// ---------------------------------------------------------- Signal Engine ----
+var preset = input(name="preset", type="select", defaultValue="None",
+  options=["None", "Trend Trader [Preset]", "Scalper [Preset]", "Swing Trader [Preset]", "Contrarian Trader [Preset]", "Adaptive Trail [Filter]", "Trend Keel [Filter]", "Trend Stepper [Filter]", "Trail Cloud [Filter]", "Trend Strength [Filter]", "Trend Basis [Filter]"],
+  label="Trading Style", group="Signal Engine/Setup",
+  tooltip="A style bundle picks the entry logic, the candle shading and the overlays that suit it, overriding those settings: Trend Trader = trend signals, simple shading, adaptive trail + trend stepper shown; Scalper = trend signals, gradient shading, reversion ladder shown, TP/SL on signals; Swing Trader = trend signals, simple shading, trail cloud shown; Contrarian Trader = fade signals, momentum-gradient shading, reversion ladder shown. A filter keeps your settings and only mutes signals that disagree with one overlay: Adaptive Trail and Trail Cloud on price position (close above the trail / the lead line), Trend Keel and Trend Stepper on their own direction, Trend Strength while the 72-bar strength is at or below 50, Trend Basis against the 50-bar basis. A muted signal opens no position.");
+var signalMode = input(name="signalMode", type="select", defaultValue="Confirmation + Exits",
+  options=["Confirmation + Exits", "Contrarian + Exits", "None"],
+  label="Entry Logic", group="Signal Engine/Setup",
+  tooltip="Confirmation + Exits: trend-following signals on every flip of the volatility-band trigger, graded by the 50-bar basis, with momentum-climax exits. Contrarian + Exits: fade signals on momentum dips and pops, with one return-to-balance exit each. None: no markers (candle shading still runs). The rules are ours, described in each marker's legend entry.");
+var sensitivity = input(name="sensitivity", type="int", defaultValue=12, min=1, max=1000,
+  label="Trigger Width", group="Signal Engine/Setup",
+  tooltip="Our scale: the trigger band is 1.9 x ATR(7) x width / 12 wide and the momentum gauge runs over 6 + width / 2 bars. Around 5 to 10 gives short-term signals, 12 medium-term, 20 and above catches only longer trends with fewer signals.");
+var candleColoring = input(name="candleColoring", type="select", defaultValue="Confirmation Simple",
+  options=["Confirmation Simple", "Confirmation Gradient", "Contrarian Gradient", "Delta Gradient", "None"],
+  label="Candle Shading", group="Signal Engine/Setup",
+  tooltip="Confirmation Simple: with-trend up / with-trend down while the close sits on the last signal's side of the 50-bar basis, undecided while it does not (a pullback or a range). Confirmation Gradient: the same idea as a continuous shade, full strength 2 ATR(60) beyond the basis. Contrarian Gradient: shade by the momentum gauge, stronger up color the more oversold, stronger down color the more overbought. Delta Gradient: like Confirmation Gradient, but the strength is the real taker delta share of the last 3 bars (full color at 30 points in the signal's direction, undecided when the tape leans the other way); where no sided tape exists it shades exactly like Confirmation Gradient.");
+var showTurnMarkers = input(name="showTurnMarkers", type="boolean", defaultValue=false,
+  label="Upgrade Diamonds", group="Signal Engine/Setup",
+  tooltip="Mark the bar where a normal signal is upgraded to strong (the close crosses to the signal's side of the basis) with a small diamond. Off by default.");
+var showBasis = input(name="showBasis", type="boolean", defaultValue=false,
+  label="Draw Trend Basis", group="Signal Engine/Setup",
+  tooltip="Draw the 50-bar basis the signals are graded against (dotted, neutral).");
+
+var bullSignalColor = input(name="bullSignalColor", type="color", defaultValue="#2dd4bf",
+  label="Long Marker", group="Signal Engine/Palette",
+  tooltip="Color of long markers (trend triangles, fade circles, upgrade diamonds).");
+var bearSignalColor = input(name="bearSignalColor", type="color", defaultValue="#fb7185",
+  label="Short Marker", group="Signal Engine/Palette",
+  tooltip="Color of short markers.");
+var exitBullColor = input(name="exitBullColor", type="color", defaultValue="#38bdf8",
+  label="Long Exit Cross", group="Signal Engine/Palette",
+  tooltip="Color of the cross that marks an exit from a long position.");
+var exitBearColor = input(name="exitBearColor", type="color", defaultValue="#f59e0b",
+  label="Short Exit Cross", group="Signal Engine/Palette",
+  tooltip="Color of the cross that marks an exit from a short position.");
+var strongBullCandle = input(name="strongBullCandle", type="color", defaultValue="#2dd4bf",
+  label="With-Trend Up Candle", group="Signal Engine/Palette",
+  tooltip="Candle color while a long signal is active AND the close is above the 50-bar basis.");
+var neutralCandle = input(name="neutralCandle", type="color", defaultValue="#a78bfa",
+  label="Undecided Candle", group="Signal Engine/Palette",
+  tooltip="Candle color while the last signal and the 50-bar basis disagree (a pullback, or a range).");
+var strongBearCandle = input(name="strongBearCandle", type="color", defaultValue="#f43f5e",
+  label="With-Trend Down Candle", group="Signal Engine/Palette",
+  tooltip="Candle color while a short signal is active AND the close is below the 50-bar basis.");
+
+// ------------------------------------------------------------- Order Flow ----
+// Our data, not inference: the taker buy / sell split, the per-bar footprint
+// and perpetual open interest. Each toggle names what it reads and where it
+// applies; every one stands down silently where its series is empty.
+var ofGradeSignals = input(name="ofGradeSignals", type="boolean", defaultValue=true,
+  label="Grade Signals By Aggression", group="Order Flow",
+  tooltip="Reads the taker buy / sell split (buy_sell_volume). Every signal keeps its base grade from the basis rule (normal = 2, strong = 3) and moves one step up when the tape agrees on the signal bar (10 points of delta share) or over the leg into it (5 points), one step down when it disagrees: a 1..4 grade drawn as the marker's fill intensity and printed in the readout and the alert message. The tape is read when the signal bar closes (a signal on the live bar keeps the full-color marker and its base grade until then). Crypto spot and perpetuals, CME; US equities carry no sided tape, so the base grade stands unchanged.");
+var ofPositionTag = input(name="ofPositionTag", type="boolean", defaultValue=true,
+  label="Tag New Money Vs Covering", group="Order Flow",
+  tooltip="Reads open interest (open_interest: the coin's perpetual open interest, which the app also serves on its spot pairs). A long signal with open interest up over the 5 bars into it is tagged new longs, down = short covering; a short signal up = new shorts, down = longs unwinding. Crypto venues with open interest data only; equities and venues without it show no tag.");
+var ofNodeLadder = input(name="ofNodeLadder", type="boolean", defaultValue=true,
+  label="Snap Ladder To Volume Nodes", group="Order Flow",
+  tooltip="Reads the per-bar footprint (volume_profile). Keeps a composite of where each bar's point of control landed, weighted by its volume, over the last N bars, and moves each reversion rung to the nearest high-volume node beyond half the inner offset from the balance line, one node per rung outward (a missing node keeps the ATR spacing from the rung below; a side without nodes keeps its ATR rungs). Zone state, entries and alerts follow the snapped rungs. Crypto and CME; US equities carry no footprint, so the ATR rungs stand.");
+var ofNodeWindow = input(name="ofNodeWindow", type="int", defaultValue=200, min=20, max=1000,
+  label="Node Window (bars)", group="Order Flow",
+  tooltip="How many bars of footprint the composite ladder holds (an exact rolling sum).");
+var ofNodeTicks = input(name="ofNodeTicks", type="int", defaultValue=10, min=1, max=50,
+  label="Node Grid (ticks per level)", group="Order Flow",
+  tooltip="Footprint ticks per price level (the footprint's own bucket size times this): higher = coarser points of control, coarser nodes and a cheaper scan. 10 keeps the node resolution far inside the rungs' ATR spacing.");
+var ofDashRows = input(name="ofDashRows", type="boolean", defaultValue=true,
+  label="Aggression And Flow Rows", group="Order Flow",
+  tooltip="Reads the taker buy / sell split (buy_sell_volume). Adds an Aggression row (delta share on the last bar and over the current leg since the last signal) and a Flow row (net delta over the last 20 bars as a share of the volume traded: the slope of cumulative delta) to the readout. Venues without a sided tape show n/a.");
+
+// --------------------------------------------------------------- Overlays ----
+var showTrail = input(name="showTrail", type="boolean", defaultValue=true,
+  label="Show Adaptive Trail", group="Overlays/Adaptive Trail",
+  tooltip="A volatility-responsive trailing stop with a shaded buffer toward price: one width (multiplier x ATR(21)) from the leg's extreme close, easing away from price on pullbacks and tightening while the trend stalls. Price above it = up trend; it flips when the close crosses it.");
+var trailPeriod = input(name="trailPeriod", type="select", defaultValue="3",
+  options=["1", "2", "3", "4", "5"],
+  label="Width Preset", group="Overlays/Adaptive Trail",
+  tooltip="Trail width on our scale: 1 hugs price tightest and flips most, 5 is the widest and follows only long-term trends. Width = multiplier x ATR(21) with multiplier 1.75 / 2.5 / 3.5 / 5 / 7; release length 14 / 20 / 28 / 40 / 56 bars.");
+var trailBullColor = input(name="trailBullColor", type="color", defaultValue="#4ade80",
+  label="Rising Trail", group="Overlays/Adaptive Trail",
+  tooltip="Trail, edge and buffer color while price is above the trail.");
+var trailBearColor = input(name="trailBearColor", type="color", defaultValue="#f97316",
+  label="Falling Trail", group="Overlays/Adaptive Trail",
+  tooltip="Trail, edge and buffer color while price is below the trail.");
+var trailBuffer = input(name="trailBuffer", type="boolean", defaultValue=true,
+  label="Shade Buffer", group="Overlays/Adaptive Trail",
+  tooltip="Shade the buffer between the trail and its edge (a quarter of the width inside the trail).");
+var trailBufferOpacity = input(name="trailBufferOpacity", type="slider", defaultValue=18,
+  min=0, max=60, step=1, label="Buffer Shade %", group="Overlays/Adaptive Trail",
+  tooltip="Opacity of the buffer shade, in percent.");
+var trailFade = input(name="trailFade", type="boolean", defaultValue=false,
+  label="Fade While Tightening", group="Overlays/Adaptive Trail",
+  tooltip="Blend the buffer toward neutral in three steps while the trend stalls and the stop tightens; full trend color right after a new extreme. Off by default: the chart renderer joins a fill only across bars that share one color, so each shade step leaves a one-bar notch in the buffer.");
+var trailEdge = input(name="trailEdge", type="boolean", defaultValue=true,
+  label="Dotted Buffer Edge", group="Overlays/Adaptive Trail",
+  tooltip="Draw the dotted far edge of the buffer.");
+
+var showKeel = input(name="showKeel", type="boolean", defaultValue=false,
+  label="Show Trend Keel", group="Overlays/Trend Keel",
+  tooltip="A slow trend line: a two-stage corridor follower on ATR(200) that holds flat through noise and turns only after a sustained move against it (a tracker trails the close inside a speed x ATR(200) corridor; the keel trails the tracker inside a half-size corridor and wakes once the tracker's accumulated push beyond that corridor reaches 1 ATR(200)). Trailing support in up phases, resistance in down phases; the trend call is its own slope.");
+var keelReactivity = input(name="keelReactivity", type="select", defaultValue="3",
+  options=["1", "2", "3", "4", "5"],
+  label="Turn Speed", group="Overlays/Trend Keel",
+  tooltip="Our 1..5 scale: 1 hugs price and turns fastest; 5 runs the widest corridor and turns slowest. Corridor 0.5 / 1 / 1.75 / 2.5 / 3.5 x ATR(200).");
+var keelBullColor = input(name="keelBullColor", type="color", defaultValue="#818cf8",
+  label="Rising Keel", group="Overlays/Trend Keel",
+  tooltip="Keel color while its last step was upward.");
+var keelBearColor = input(name="keelBearColor", type="color", defaultValue="#eab308",
+  label="Falling Keel", group="Overlays/Trend Keel",
+  tooltip="Keel color while its last step was downward.");
+var keelBand = input(name="keelBand", type="boolean", defaultValue=true,
+  label="Shade To Price", group="Overlays/Trend Keel",
+  tooltip="Shade the span between the keel and the close in the trend color, so the trailing support / resistance zone reads at a glance.");
+var keelBandOpacity = input(name="keelBandOpacity", type="slider", defaultValue=10,
+  min=0, max=60, step=1, label="Band Shade %", group="Overlays/Trend Keel",
+  tooltip="Opacity of the keel band, in percent.");
+
+var showCloud = input(name="showCloud", type="boolean", defaultValue=false,
+  label="Show Trail Cloud", group="Overlays/Trail Cloud",
+  tooltip="A cloud between a fast lead line and a slow lag line, each a trailing corridor of (width + 0.5) x ATR(200): the lead holds until the close drags it out, the lag applies the same rule to the lead. Price above a rising cloud finds support at the lines, below a falling cloud they act as resistance.");
+var cloudPeriod = input(name="cloudPeriod", type="select", defaultValue="2",
+  options=["1", "2", "3", "4", "5"],
+  label="Corridor Width", group="Overlays/Trail Cloud",
+  tooltip="Corridor width on our scale. Higher values widen the corridor: fewer steps, slower flips, longer-held trends.");
+var cloudBullColor = input(name="cloudBullColor", type="color", defaultValue="#22d3ee",
+  label="Rising Cloud", group="Overlays/Trail Cloud",
+  tooltip="Cloud and lead color while the lead line is above the lag line.");
+var cloudBearColor = input(name="cloudBearColor", type="color", defaultValue="#e07a5f",
+  label="Falling Cloud", group="Overlays/Trail Cloud",
+  tooltip="Cloud and lead color while the lead line is below the lag line.");
+var cloudOpacity = input(name="cloudOpacity", type="slider", defaultValue=16,
+  min=0, max=60, step=1, label="Cloud Shade %", group="Overlays/Trail Cloud",
+  tooltip="Opacity of the cloud fill, in percent.");
+var cloudLagColor = input(name="cloudLagColor", type="color", defaultValue="#8a93a6",
+  label="Lag Line Tint", group="Overlays/Trail Cloud",
+  tooltip="The dotted lag line stays neutral so the cloud carries the state.");
+
+var showStepper = input(name="showStepper", type="boolean", defaultValue=false,
+  label="Show Trend Stepper", group="Overlays/Trend Stepper",
+  tooltip="A fast trend line that holds flat until price forces it to step: an accelerating mirror-stop stepper on closes. Up leg while its last step was up (it flips on its own slope).");
+var stepperReactivity = input(name="stepperReactivity", type="select", defaultValue="3",
+  options=["1", "2", "3", "4", "5"],
+  label="Step Speed", group="Overlays/Trend Stepper",
+  tooltip="Acceleration step on our scale: 1 reacts fastest (most flips), 5 is the smoothest (fewest flips). Steps 0.05 / 0.02 / 0.015 / 0.01 / 0.005 on a 0.5 base.");
+var stepperBullColor = input(name="stepperBullColor", type="color", defaultValue="#a3e635",
+  label="Up Leg", group="Overlays/Trend Stepper",
+  tooltip="Stepper color while its last step was upward.");
+var stepperBearColor = input(name="stepperBearColor", type="color", defaultValue="#f87171",
+  label="Down Leg", group="Overlays/Trend Stepper",
+  tooltip="Stepper color while its last step was downward.");
+
+var showLadder = input(name="showLadder", type="boolean", defaultValue=false,
+  label="Show Reversion Ladder", group="Overlays/Reversion Ladder",
+  tooltip="Two graded over-extension zones around a balance line (EMA of closes over 21 x spacing bars), for fading over-extension in ranging markets: three rungs each side at 1x, 1.5x and 2x an offset of (2 + 0.6 x spacing) x ATR(14 x spacing), the outer band shaded denser than the inner one (each band's rung edges carry the same shade). Price is not clamped to the ladder.");
+var ladderDistance = input(name="ladderDistance", type="select", defaultValue="3",
+  options=["1", "2", "3", "4", "5"],
+  label="Rung Spacing", group="Overlays/Reversion Ladder",
+  tooltip="How far the rungs sit from price, on our 1..5 scale: 1 = tightest and fastest, 5 = widest and steadiest. Higher values widen the ladder and slow every lookback, so the zones break less often.");
+var ladderUpperColor = input(name="ladderUpperColor", type="color", defaultValue="#c084fc",
+  label="Top Zone", group="Overlays/Reversion Ladder",
+  tooltip="Color of the top (probable high) zone, its rungs and its markers.");
+var ladderLowerColor = input(name="ladderLowerColor", type="color", defaultValue="#38bdf8",
+  label="Bottom Zone", group="Overlays/Reversion Ladder",
+  tooltip="Color of the bottom (probable low) zone, its rungs and its markers.");
+var ladderOpacity = input(name="ladderOpacity", type="slider", defaultValue=12,
+  min=0, max=50, step=1, label="Zone Shade %", group="Overlays/Reversion Ladder",
+  tooltip="Opacity of the inner band (rung 1 to rung 2) and its rung edges, in percent. The outer band (rung 2 to rung 3) is drawn 1.75x denser.");
+var ladderBalance = input(name="ladderBalance", type="boolean", defaultValue=true,
+  label="Draw Balance Line", group="Overlays/Reversion Ladder",
+  tooltip="Draw the balance line the ladder is centered on (dotted).");
+var ladderBalanceColor = input(name="ladderBalanceColor", type="color", defaultValue="#94a3b8",
+  label="Balance Line Tint", group="Overlays/Reversion Ladder",
+  tooltip="The balance line stays neutral so the zones carry the color.");
+
+var overlayFlipMarkers = input(name="overlayFlipMarkers", type="boolean", defaultValue=false,
+  label="Dot Overlay Flips", group="Overlays/Flip Dots",
+  tooltip="Dot the bar where a displayed overlay flips (trail: close crossed it; stepper and keel: turned; cloud: lead crossed the lag). Off by default: the lines already change color.");
+var ladderEntryMarkers = input(name="ladderEntryMarkers", type="boolean", defaultValue=false,
+  label="Mark Zone Entries", group="Overlays/Flip Dots",
+  tooltip="Mark the bar a close first enters a reversion zone (a small square above the bar for the top zone, below it for the bottom zone).");
+
+// ------------------------------------------------------- Targets & Stops ----
+var tpslSource = input(name="tpslSource", type="select", defaultValue="None",
+  options=["None", "Signals", "Adaptive Trail", "Reversion Ladder", "Trend Stepper", "Trend Keel", "Trail Cloud"],
+  label="Anchor Levels On", group="Targets & Stops",
+  tooltip="Draw take-profit and stop-loss levels anchored on the chosen event: two targets in the trade direction, two stops against it, each (spacing / 2) x ATR(200) apart, frozen at the anchor. Signals anchor on every displayed signal of the active entry logic; the trail, stepper, keel and cloud on their flips; the ladder on a close beyond rung 3 (breakout polarity: targets in the direction of the break). When the close runs beyond the outermost level the ladder re-centers on that close, direction kept.");
+var tpslDistance = input(name="tpslDistance", type="float", defaultValue=5, min=0.1,
+  label="Level Spacing", group="Targets & Stops",
+  tooltip="How far apart the levels sit. Half-spacing = (spacing / 2) x ATR(200).");
+var tpColor = input(name="tpColor", type="color", defaultValue="#6ee7b7",
+  label="Target Tint", group="Targets & Stops",
+  tooltip="Color of the target levels, band and tags.");
+var slColor = input(name="slColor", type="color", defaultValue="#fda4af",
+  label="Stop Tint", group="Targets & Stops",
+  tooltip="Color of the stop levels, band and tags.");
+var tpslZones = input(name="tpslZones", type="boolean", defaultValue=true,
+  label="Shade Level Bands", group="Targets & Stops",
+  tooltip="Soft band between the inner and outer level of each side (the level edges carry the same shade).");
+var tpslZoneOpacity = input(name="tpslZoneOpacity", type="slider", defaultValue=10,
+  min=0, max=50, step=1, label="Band Shade %", group="Targets & Stops",
+  tooltip="Opacity of the level bands, in percent.");
+var tpslHighlightNext = input(name="tpslHighlightNext", type="boolean", defaultValue=false,
+  label="Glow Next Level", group="Targets & Stops",
+  tooltip="Glow on the next uncrossed target and stop (TP1 until the close is beyond it, then TP2; same on the stop side).");
+var tpslAnchorMarkers = input(name="tpslAnchorMarkers", type="boolean", defaultValue=false,
+  label="Flag Anchors", group="Targets & Stops",
+  tooltip="Flag the bar a ladder is anchored on: below the bar for a long ladder, above it for a short one, at the anchor price for a re-center.");
+var tpslPriceTags = input(name="tpslPriceTags", type="boolean", defaultValue=true,
+  label="Price Tags", group="Targets & Stops",
+  tooltip="Tag the current levels with their price (TP2, TP1, SL1, SL2) 15 bars right of the last bar.");
+var tpslLevelLines = input(name="tpslLevelLines", type="boolean", defaultValue=true,
+  label="Level Lines", group="Targets & Stops",
+  tooltip="Dashed line per current level from the bar after the anchor to 15 bars right of the last bar.");
+var tpslEntryTag = input(name="tpslEntryTag", type="boolean", defaultValue=false,
+  label="Entry Tag", group="Targets & Stops",
+  tooltip="Also tag the anchor price (Entry). Off by default.");
+var anchorColor = input(name="anchorColor", type="color", defaultValue="#94a3b8",
+  label="Entry Tint", group="Targets & Stops",
+  tooltip="Color of the optional entry tag and the re-center flags.");
+
+// --------------------------------------------------------- Readout Panel ----
+var dashLocation = input(name="dashLocation", type="select", defaultValue="Bottom Right",
+  options=["Hidden", "Top Right", "Bottom Right", "Bottom Left"],
+  label="Panel Corner", group="Readout Panel",
+  tooltip="Where the readout panel sits. Hidden turns the panel off.");
+var dashSize = input(name="dashSize", type="select", defaultValue="Small",
+  options=["Tiny", "Small", "Normal", "Large"],
+  label="Panel Text Size", group="Readout Panel", tooltip="Text size of the readout panel.");
+var dashColor = input(name="dashColor", type="color", defaultValue="#0f172a",
+  label="Panel Background", group="Readout Panel", tooltip="Background color of the readout panel.");
+var showStrengthRow = input(name="showStrengthRow", type="boolean", defaultValue=true,
+  label="Trend Strength Row", group="Readout Panel",
+  tooltip="Show the trend strength row: R-squared of a 72-bar regression of close on time, in percent; above 50 = trending.");
+var showMomentumRow = input(name="showMomentumRow", type="boolean", defaultValue=true,
+  label="Momentum Row", group="Readout Panel",
+  tooltip="Show the momentum gauge row (the Wilder RSI behind exits and fade signals) and the trigger width it runs on.");
+var showOverlayRows = input(name="showOverlayRows", type="boolean", defaultValue=true,
+  label="Overlay Rows", group="Readout Panel",
+  tooltip="Show one row per displayed overlay with its current state, and the TP/SL ladder's next levels.");
+
+// ============================================================================
+// PRESETS -> effective mode, coloring, overlays, filters
+// ============================================================================
+var mode = signalMode;
+var coloring = candleColoring;
+var trailOn = showTrail;
+var ladderOn = showLadder;
+var stepperOn = showStepper;
+var keelOn = showKeel;
+var cloudOn = showCloud;
+var tpslSrc = tpslSource;
+var filterTs = false;
+var filterBasis = false;
+var filterTrail = false;
+var filterKeel = false;
+var filterStepper = false;
+var filterCloud = false;
+if (preset == "Trend Trader [Preset]") { mode = "Confirmation + Exits"; coloring = "Confirmation Simple"; trailOn = true; stepperOn = true; }
+else if (preset == "Scalper [Preset]") { mode = "Confirmation + Exits"; coloring = "Confirmation Gradient"; ladderOn = true; tpslSrc = "Signals"; }
+else if (preset == "Swing Trader [Preset]") { mode = "Confirmation + Exits"; coloring = "Confirmation Simple"; cloudOn = true; }
+else if (preset == "Contrarian Trader [Preset]") { mode = "Contrarian + Exits"; coloring = "Contrarian Gradient"; ladderOn = true; }
+else if (preset == "Adaptive Trail [Filter]") { filterTrail = true; }
+else if (preset == "Trend Keel [Filter]") { filterKeel = true; }
+else if (preset == "Trend Stepper [Filter]") { filterStepper = true; }
+else if (preset == "Trail Cloud [Filter]") { filterCloud = true; }
+else if (preset == "Trend Strength [Filter]") { filterTs = true; }
+else if (preset == "Trend Basis [Filter]") { filterBasis = true; }
+var confirmMode = mode == "Confirmation + Exits";
+var contraMode = mode == "Contrarian + Exits";
+
+// An overlay's model runs when it is drawn, when it anchors the TP/SL ladder,
+// or when it filters the signals; the signal engine always runs.
+var needTrail = trailOn || tpslSrc == "Adaptive Trail" || filterTrail;
+var needLadder = ladderOn || tpslSrc == "Reversion Ladder";
+var needStepper = stepperOn || tpslSrc == "Trend Stepper" || filterStepper;
+var needKeel = keelOn || tpslSrc == "Trend Keel" || filterKeel;
+var needCloud = cloudOn || tpslSrc == "Trail Cloud" || filterCloud;
+var needTpsl = tpslSrc != "None";
+
+// ============================================================================
+// ORDER FLOW SOURCES (lazy: a fetch exists only while a feature needs it)
+// ============================================================================
+// US equity venues carry no sided tape, footprint or open interest: the script
+// never reads them there (the engine skips its own fetch; the chart still asks
+// the plane for every declared source and receives nothing) and every
+// enhancement keeps the price-only behavior. On any other venue an empty or
+// missing series reads NaN and stands down the same way, bar by bar; the
+// sources cost one budget slot each, never the order book.
+persist venueFlag = -1;
+if (venueFlag < 0) {
+  venueFlag = (currentExchange == "NYSE" || currentExchange == "NASDAQ" || currentExchange == "CBOE" || currentExchange == "NYSE_ARCA" || currentExchange == "NYSE_AMERICAN" || currentExchange == "IEX" || currentExchange == "FINRA" || currentExchange == "OTC_EQUITY_SECURITY" || currentExchange == "CBOE_BZX" || currentExchange == "CBOE_EDGX" || currentExchange == "NASDAQ_BX" || currentExchange == "LTSE") ? 1 : 0;
+}
+var venueEquity = venueFlag == 1;
+var deltaColoring = coloring == "Delta Gradient";
+var needBsv = !venueEquity && (ofGradeSignals || ofDashRows || deltaColoring);
+var needOi = !venueEquity && ofPositionTag && (confirmMode || contraMode);
+var needVp = !venueEquity && ofNodeLadder && needLadder;
+var bsvBuyNow = na;
+var bsvSellNow = na;
+var share3Now = na;
+var share20Now = na;
+if (needBsv) {
+  timeseries bsv = buy_sell_volume(symbol=currentSymbol, exchange=currentExchange, currency="USD");
+  bsvBuyNow = bsv.buy[0];
+  bsvSellNow = bsv.sell[0];
+  if (deltaColoring) {
+    // 3-bar delta share for the candle shade (plain reads: no rolling series to maintain)
+    var b1 = bsv.buy[1];
+    var s1 = bsv.sell[1];
+    var b2 = bsv.buy[2];
+    var s2 = bsv.sell[2];
+    if (isnum(bsvBuyNow) && isnum(bsvSellNow) && isnum(b1) && isnum(s1) && isnum(b2) && isnum(s2)) {
+      var t3 = bsvBuyNow + bsvSellNow + b1 + s1 + b2 + s2;
+      if (t3 > 0) { share3Now = (bsvBuyNow - bsvSellNow + b1 - s1 + b2 - s2) / t3; }
+    }
+  }
+  if (ofDashRows && isLastBar) {
+    // 20-bar net delta share for the Flow row, summed on the last bar only
+    var d20 = 0;
+    var t20 = 0;
+    var ok20 = true;
+    for (var j = 0; j < 20; j = j + 1) {
+      var bj = bsv.buy[j];
+      var sj = bsv.sell[j];
+      if (isnum(bj) && isnum(sj)) { d20 = d20 + bj - sj; t20 = t20 + bj + sj; } else { ok20 = false; }
+    }
+    if (ok20 && t20 > 0) { share20Now = d20 / t20; }
+  }
+}
+// A bar carries sided data when both sides are numbers and something traded.
+var sidedNow = isnum(bsvBuyNow) && isnum(bsvSellNow) && bsvBuyNow + bsvSellNow > 0;
+var barShare = sidedNow ? (bsvBuyNow - bsvSellNow) / (bsvBuyNow + bsvSellNow) : na;
+// Leg accumulators: taker delta and volume since the last signal flip (the
+// signal engine grades on them, then resets them on the flip bar).
+persist legDelta = 0;
+persist legTotal = 0;
+if (sidedNow) {
+  legDelta = legDelta + (bsvBuyNow - bsvSellNow);
+  legTotal = legTotal + bsvBuyNow + bsvSellNow;
+}
+// The tape is read on closed bars only: the app re-runs the forming bar on
+// every tick, so a signal fired on it would be regraded as its split fills
+// in (marker shade, alert note, readout flickering between grades). While
+// the signal bar forms the tape is silent (shade 3, base grade); the grade
+// is set once, when the bar closes (isConfirmed), from the closed row.
+var tapeReady = ofGradeSignals && sidedNow && legTotal > 0 && isConfirmed;
+var oiChg5 = na;
+if (needOi) {
+  timeseries oi = open_interest(symbol=currentSymbol, exchange=currentExchange);
+  var oiNow = oi.close[0];
+  var oiPrev = oi.close[5];
+  if (isnum(oiNow) && isnum(oiPrev) && oiPrev > 0) { oiChg5 = (oiNow - oiPrev) / oiPrev; }
+}
+// Tape adjustment of a signal in direction sd: +1 when the tape agrees on the
+// signal bar (10 points of delta share) or over the leg (5 points) with no
+// disagreement, -1 when it disagrees, else 0. Without sided data: 0.
+func tapeAdjust(sd) {
+  var adj = 0;
+  if (tapeReady) {
+    var legShare = legDelta / legTotal;
+    var net = 0;
+    if (sd * barShare >= 0.10) { net = net + 1; } else if (sd * barShare <= -0.10) { net = net - 1; }
+    if (sd * legShare >= 0.05) { net = net + 1; } else if (sd * legShare <= -0.05) { net = net - 1; }
+    if (net > 0) { adj = 1; } else if (net < 0) { adj = -1; }
+  }
+  return adj;
+}
+// Position tag from open interest over the 5 bars into the signal (perps only).
+func flowTag(sd) {
+  var tag = "";
+  if (ofPositionTag && isnum(oiChg5) && math.abs(oiChg5) >= 0.001) {
+    if (sd == 1) { tag = oiChg5 > 0 ? "new longs" : "short covering"; }
+    else { tag = oiChg5 > 0 ? "new shorts" : "longs unwinding"; }
+  }
+  return tag;
+}
+func clampGrade(g) {
+  return g < 1 ? 1 : (g > 4 ? 4 : g);
+}
+
+// ============================================================================
+// SHARED PRIMITIVES
+// ============================================================================
+var C = d.close;
+// House volatility unit: Wilder ATR(200), hardcoded. Cloud corridors, keel
+// corridors and the TP/SL spacing all read this one value.
+var atr200 = atr(period=200, source=d);
+var atrReady = !isna(atr200);
+// Marker lift: absolute-placed markers sit half an ATR(14) off the bar.
+var atrLift = atr(period=14, source=d);
+var lift = isna(atrLift) ? 0.5 * (d.high - d.low) : 0.5 * atrLift;
+
+// The stepper: an accelerating mirror-stop stepper on closes. Within a leg it
+// keeps the extreme close (ep) mirrored across the line; every new extreme
+// fires the line toward price with a growing acceleration factor
+// (af = 0.5 + step x fires in the leg), and a close crossing the mirrored
+// stop flips the leg. One function, one state slot per instance: slot 1 =
+// the Trend Stepper overlay (step from its reactivity), slot 0 spare.
+// Returns +1 / -1 on a flip, else 0.
+persist sDir = [0, 0];
+persist sEp = [0, 0];
+persist sVal = [0, 0];
+persist sAf = [0.5, 0.5];
+func sarStep(id, step, price) {
+  var flip = 0;
+  if (sDir[id] == 0) {
+    // Seed: the first bar starts an up leg at the close; the seed washes out
+    // at the first one or two flips (the state is one flip event deep).
+    sDir[id] = 1;
+    sEp[id] = price;
+    sVal[id] = price;
+    sAf[id] = 0.5;
+  } else if (sDir[id] == 1) {
+    var stopUp = 2 * sVal[id] - sEp[id];
+    if (price < stopUp) {
+      sAf[id] = sAf[id] + step;
+      sVal[id] = sEp[id] + sAf[id] * (price - sEp[id]);
+      sEp[id] = price;
+      sDir[id] = -1;
+      sAf[id] = 0.5;
+      flip = -1;
+    } else if (price > sEp[id]) {
+      sAf[id] = sAf[id] + step;
+      var mirrorUp = 2 * sVal[id] - sEp[id];
+      sVal[id] = mirrorUp + sAf[id] * (price - mirrorUp);
+      sEp[id] = price;
+    }
+  } else {
+    var stopDn = 2 * sVal[id] - sEp[id];
+    if (price > stopDn) {
+      sAf[id] = sAf[id] + step;
+      sVal[id] = sEp[id] + sAf[id] * (price - sEp[id]);
+      sEp[id] = price;
+      sDir[id] = 1;
+      sAf[id] = 0.5;
+      flip = 1;
+    } else if (price < sEp[id]) {
+      sAf[id] = sAf[id] + step;
+      var mirrorDn = 2 * sVal[id] - sEp[id];
+      sVal[id] = mirrorDn + sAf[id] * (price - mirrorDn);
+      sEp[id] = price;
+    }
+  }
+  return flip;
+}
+
+// ============================================================================
+// ADAPTIVE TRAIL
+// ============================================================================
+// W = mult x ATR(21). Up leg: a new extreme close re-anchors and re-arms the
+// stop at full width; otherwise the anchor eases toward price at 1/L per bar
+// (the stop backs away on a pullback) and the width tightens toward half at
+// the same rate (a stalled trend is protected more closely). trail = anchor
+// - width; the buffer edge sits a quarter of the width inside the trail; a
+// close through the trail flips the leg and the mirror rule runs.
+var trMult = 3.5;
+var trRelease = 28;
+if (trailPeriod == "1") { trMult = 1.75; trRelease = 14; }
+else if (trailPeriod == "2") { trMult = 2.5; trRelease = 20; }
+else if (trailPeriod == "4") { trMult = 5; trRelease = 40; }
+else if (trailPeriod == "5") { trMult = 7; trRelease = 56; }
+var trAlpha = 1 / trRelease;
+var trBandFrac = 0.25;
+var trFloorFrac = 0.5;
+var atr21 = atr(period=21, source=d);
+
+persist trDir = 0;
+persist trAnchor = na;
+persist trDist = na;
+var trFlipUp = false;
+var trFlipDn = false;
+var trailNow = na;
+var trEdgeNow = na;
+var trFullWidth = na;
+if (needTrail && !isna(atr21)) {
+  trFullWidth = trMult * atr21;
+  if (trDir == 0) {
+    trDir = 1;
+    trAnchor = C;
+    trDist = trFullWidth;
+  } else if (trDir == 1) {
+    if (C > trAnchor) {
+      trAnchor = C;
+      trDist = trFullWidth;
+    } else {
+      trAnchor = trAnchor + trAlpha * (C - trAnchor);
+      trDist = trDist + trAlpha * (trFloorFrac * trFullWidth - trDist);
+    }
+    if (C < trAnchor - trDist) {
+      trDir = -1;
+      trAnchor = C;
+      trDist = trFullWidth;
+      trFlipDn = true;
+    }
+  } else {
+    if (C < trAnchor) {
+      trAnchor = C;
+      trDist = trFullWidth;
+    } else {
+      trAnchor = trAnchor + trAlpha * (C - trAnchor);
+      trDist = trDist + trAlpha * (trFloorFrac * trFullWidth - trDist);
+    }
+    if (C > trAnchor + trDist) {
+      trDir = 1;
+      trAnchor = C;
+      trDist = trFullWidth;
+      trFlipUp = true;
+    }
+  }
+  if (trDir == 1) {
+    trailNow = trAnchor - trDist;
+    trEdgeNow = trailNow + trBandFrac * trDist;
+  } else {
+    trailNow = trAnchor + trDist;
+    trEdgeNow = trailNow - trBandFrac * trDist;
+  }
+}
+timeseries trail = trailNow;
+timeseries trailEdgeLine = trEdgeNow;
+var trIsBull = trDir >= 0;
+
+// ============================================================================
+// COMPOSITE VOLUME LADDER (points of control over the last N bars)
+// ============================================================================
+// A flat grid of volume per price level (the engine has no keyed maps): level
+// k of the price grid (bucket low = k x step) sits at grid[k - lvBaseIdx].
+// Each bar adds its POINT OF CONTROL (the footprint's busiest bucket, weighted
+// by that bucket's volume: three accessor calls, no bucket loop, because a
+// loop over every bucket costs 2..3 us per bucket in the interpreter) and
+// remembers it in a circular ring of (absolute level, volume) slots, one slot
+// per bar; the slot being overwritten is the bar that leaves the window and is
+// subtracted first, so the ladder is an exact rolling sum: where the points of
+// control clustered over the last N bars. The engine snapshots persisted state
+// every bar, so the state stays small and flat: 1201 grid levels (600 each
+// side of the current level; the node scan never walks further than 300) and
+// two flat ring arrays of N numbers, no nested arrays, no shift. The grid step
+// is the first bucket's span (the footprint's own price grid). When price
+// walks off the grid it is re-based around the current level; levels that
+// fall off the far side are forgotten (their ring slots zeroed).
+var lvN = 1201;
+var lvHalf = 600;
+persist lvStep = na;
+persist lvBase = na;
+persist lvBaseIdx = 0;
+persist lvGrid = [];
+persist lvRingK = [];
+persist lvRingV = [];
+persist lvRingPos = 0;
+persist lvBars = 0;
+if (needVp) {
+  timeseries vp = source("volume_profile", symbol=currentSymbol, exchange=currentExchange, ticksPerBar=ofNodeTicks, currency="USD");
+  var lvCount = vpBucketCount(vp);
+  var lvK = 0;
+  var lvVol = 0;
+  if (isnum(lvCount) && lvCount > 0) {
+    if (isna(lvStep)) {
+      var lvFirst = vp[0][1];
+      if (lvFirst[1] - lvFirst[0] > 0) {
+        lvStep = lvFirst[1] - lvFirst[0];
+        lvBaseIdx = math.round(lvFirst[0] / lvStep) - lvHalf;
+        lvBase = lvBaseIdx * lvStep;
+        for (var g0 = 0; g0 < lvN; g0 = g0 + 1) { lvGrid.push(0); }
+        for (var r0 = 0; r0 < ofNodeWindow; r0 = r0 + 1) { lvRingK.push(0); lvRingV.push(0); }
+      }
+    }
+    var lvPoc = vpPoc(vp);
+    var lvPocVol = vpPocVolume(vp);
+    if (!isna(lvStep) && isnum(lvPoc) && isnum(lvPocVol) && lvPocVol > 0) {
+      // the point of control is a bucket center: its level = round((poc - step / 2) / step)
+      lvK = math.round((lvPoc - 0.5 * lvStep) / lvStep);
+      lvVol = lvPocVol;
+    }
+  }
+  if (!isna(lvStep)) {
+    // the slot being overwritten is the bar leaving the window
+    var lvOldK = lvRingK[lvRingPos];
+    var lvOldV = lvRingV[lvRingPos];
+    if (lvOldV > 0) {
+      var lvOldIdx = lvOldK - lvBaseIdx;
+      if (lvOldIdx >= 0 && lvOldIdx < lvN) { lvGrid[lvOldIdx] = lvGrid[lvOldIdx] - lvOldV; }
+      lvBars = lvBars - 1;
+    }
+    if (lvVol > 0) {
+      var lvIdx = lvK - lvBaseIdx;
+      if (lvIdx < 0 || lvIdx >= lvN) {
+        var lvShift = lvIdx - lvHalf;
+        var lvNew = [];
+        for (var g1 = 0; g1 < lvN; g1 = g1 + 1) {
+          var gSrc = g1 + lvShift;
+          lvNew.push(gSrc >= 0 && gSrc < lvN ? lvGrid[gSrc] : 0);
+        }
+        lvGrid = lvNew;
+        lvBaseIdx = lvBaseIdx + lvShift;
+        lvBase = lvBaseIdx * lvStep;
+        for (var ri = 0; ri < ofNodeWindow; ri = ri + 1) {
+          if (lvRingV[ri] > 0) {
+            var rIdx = lvRingK[ri] - lvBaseIdx;
+            if (rIdx < 0 || rIdx >= lvN) { lvRingV[ri] = 0; lvBars = lvBars - 1; }
+          }
+        }
+        lvIdx = lvHalf;
+      }
+      lvGrid[lvIdx] = lvGrid[lvIdx] + lvVol;
+      lvBars = lvBars + 1;
+    }
+    lvRingK[lvRingPos] = lvK;
+    lvRingV[lvRingPos] = lvVol;
+    lvRingPos = lvRingPos + 1;
+    if (lvRingPos >= ofNodeWindow) { lvRingPos = 0; }
+  }
+}
+// Node scan: from fromPrice outward (sideDir +1 up / -1 down) to toPrice, a
+// level is a candidate node when it holds more volume than its lower neighbour
+// and at least as much as its upper one (peaks 2 steps apart or closer keep
+// the higher); nodes are the candidates holding at least 20% of the largest
+// level in the span, taken outward. Writes up to 3 node prices (bucket
+// centers) into lvFound and returns how many.
+persist lvFound = [0, 0, 0];
+func scanNodes(sideDir, fromPrice, toPrice) {
+  var found = 0;
+  var iFrom = math.round((fromPrice - lvBase) / lvStep);
+  var iTo = math.round((toPrice - lvBase) / lvStep);
+  var steps = sideDir * (iTo - iFrom) + 1;
+  if (steps > 300) { steps = 300; }
+  var cand = [];
+  var candVol = [];
+  var lastIdx = -10;
+  var spanMax = 0;
+  for (var st = 0; st < steps; st = st + 1) {
+    var gi = iFrom + sideDir * st;
+    if (gi >= 1 && gi <= lvN - 2) {
+      var gv = lvGrid[gi];
+      if (gv > spanMax) { spanMax = gv; }
+      if (gv > 0 && gv > lvGrid[gi - 1] && gv >= lvGrid[gi + 1]) {
+        if (cand.length > 0 && math.abs(gi - lastIdx) <= 2) {
+          if (gv > candVol[cand.length - 1]) { cand[cand.length - 1] = gi; candVol[cand.length - 1] = gv; lastIdx = gi; }
+        } else if (cand.length < 12) {
+          cand.push(gi);
+          candVol.push(gv);
+          lastIdx = gi;
+        }
+      }
+    }
+  }
+  var floorVol = 0.2 * spanMax;
+  for (var ci = 0; ci < cand.length; ci = ci + 1) {
+    if (found < 3 && candVol[ci] >= floorVol) {
+      lvFound[found] = lvBase + (cand[ci] + 0.5) * lvStep;
+      found = found + 1;
+    }
+  }
+  return found;
+}
+persist lvTick = 8;
+persist lvUpN = 0;
+persist lvDnN = 0;
+persist lvUp = [0, 0, 0];
+persist lvDn = [0, 0, 0];
+
+// ============================================================================
+// REVERSION LADDER
+// ============================================================================
+// balance = EMA(close, 21 x distance); unit = ATR(14 x distance);
+// offset = (2 + 0.6 x distance) x unit; rungs at balance +/- 1, 1.5, 2 x offset.
+var lzP = tonumber(ladderDistance);
+var lzBalanceLen = 21 * lzP;
+var lzUnitLen = 14 * lzP;
+var lzK1 = 2 + 0.6 * lzP;
+var lzBalanceNow = na;
+var lzUp1Now = na;
+var lzUp2Now = na;
+var lzUp3Now = na;
+var lzDn1Now = na;
+var lzDn2Now = na;
+var lzDn3Now = na;
+persist lzPrevZone = 0;
+persist lzPrevSide = 0;
+var lzZone = 0;
+var lzSide = lzPrevSide;
+if (needLadder) {
+  var lzBalanceRaw = ema(source=d.close, period=lzBalanceLen);
+  var lzUnitRaw = atr(period=lzUnitLen, source=d);
+  if (!isna(lzBalanceRaw) && !isna(lzUnitRaw)) {
+    lzBalanceNow = lzBalanceRaw;
+    var lzOffset = lzK1 * lzUnitRaw;
+    lzUp1Now = lzBalanceNow + lzOffset;
+    lzUp2Now = lzBalanceNow + 1.5 * lzOffset;
+    lzUp3Now = lzBalanceNow + 2 * lzOffset;
+    lzDn1Now = lzBalanceNow - lzOffset;
+    lzDn2Now = lzBalanceNow - 1.5 * lzOffset;
+    lzDn3Now = lzBalanceNow - 2 * lzOffset;
+    // Node mode: snap each rung to the nearest high-volume node beyond half
+    // the inner offset, one per rung outward, scanned on the first warm bar and
+    // every 8 bars after it (the scan walks up to 300 grid levels per side at
+    // about 1 us each, so it is the ladder's cost; a strict cadence, never a
+    // retry, keeps that bounded when a side holds no node). A missing node
+    // keeps the ATR spacing from the rung below; a side without any node keeps
+    // its ATR rungs, and so does every bar before the ladder is warm (the same rungs as the classic build).
+    if (needVp && lvBars >= 20 && !isna(lvStep)) {
+      if (lvTick >= 8) {
+        lvTick = 0;
+        lvUpN = scanNodes(1, lzBalanceNow + 0.5 * lzOffset, lzBalanceNow + 2.3 * lzOffset);
+        lvUp[0] = lvFound[0]; lvUp[1] = lvFound[1]; lvUp[2] = lvFound[2];
+        lvDnN = scanNodes(-1, lzBalanceNow - 0.5 * lzOffset, lzBalanceNow - 2.3 * lzOffset);
+        lvDn[0] = lvFound[0]; lvDn[1] = lvFound[1]; lvDn[2] = lvFound[2];
+      }
+      lvTick = lvTick + 1;
+      if (lvUpN > 0) {
+        lzUp1Now = lvUp[0];
+        lzUp2Now = lvUpN > 1 ? lvUp[1] : lzUp1Now + 0.5 * lzOffset;
+        lzUp3Now = lvUpN > 2 ? lvUp[2] : lzUp2Now + 0.5 * lzOffset;
+      }
+      if (lvDnN > 0) {
+        lzDn1Now = lvDn[0];
+        lzDn2Now = lvDnN > 1 ? lvDn[1] : lzDn1Now - 0.5 * lzOffset;
+        lzDn3Now = lvDnN > 2 ? lvDn[2] : lzDn2Now - 0.5 * lzOffset;
+      }
+    }
+    // Zone state of the close: 0 inside the corridor, +1..+3 = highest upper
+    // rung cleared, -1..-3 = lowest lower rung cleared. Side = close vs the
+    // balance line, held through an exact touch.
+    if (C > lzUp3Now) { lzZone = 3; }
+    else if (C > lzUp2Now) { lzZone = 2; }
+    else if (C > lzUp1Now) { lzZone = 1; }
+    else if (C < lzDn3Now) { lzZone = -3; }
+    else if (C < lzDn2Now) { lzZone = -2; }
+    else if (C < lzDn1Now) { lzZone = -1; }
+    if (C > lzBalanceNow) { lzSide = 1; }
+    else if (C < lzBalanceNow) { lzSide = -1; }
+  }
+}
+var lzEnteredUpper = needLadder && lzZone >= 1 && lzPrevZone < 1;
+var lzEnteredLower = needLadder && lzZone <= -1 && lzPrevZone > -1;
+var lzReachedUpper3 = needLadder && lzZone == 3 && lzPrevZone < 3;
+var lzReachedLower3 = needLadder && lzZone == -3 && lzPrevZone > -3;
+var lzCrossedUp = needLadder && lzSide == 1 && lzPrevSide == -1;
+var lzCrossedDown = needLadder && lzSide == -1 && lzPrevSide == 1;
+lzPrevZone = lzZone;
+lzPrevSide = lzSide;
+timeseries ladderBalanceLine = lzBalanceNow;
+timeseries ladderUp1 = lzUp1Now;
+timeseries ladderUp2 = lzUp2Now;
+timeseries ladderUp3 = lzUp3Now;
+timeseries ladderDn1 = lzDn1Now;
+timeseries ladderDn2 = lzDn2Now;
+timeseries ladderDn3 = lzDn3Now;
+
+// ============================================================================
+// TREND STEPPER (slot 1 of the shared stepper)
+// ============================================================================
+var stStep = 0.015;
+if (stepperReactivity == "1") { stStep = 0.05; }
+else if (stepperReactivity == "2") { stStep = 0.02; }
+else if (stepperReactivity == "4") { stStep = 0.01; }
+else if (stepperReactivity == "5") { stStep = 0.005; }
+var stFlip = 0;
+var stepperNow = na;
+if (needStepper) {
+  stFlip = sarStep(1, stStep, C);
+  stepperNow = sVal[1];
+}
+var stDir = sDir[1];
+var stFlipUp = stFlip == 1;
+var stFlipDn = stFlip == -1;
+timeseries stepperLine = stepperNow;
+var stIsBull = stDir >= 0;
+
+// ============================================================================
+// TREND KEEL
+// ============================================================================
+// Stage 1, the tracker, trails the close inside a corridor of
+// reactivity x ATR(200). Stage 2, the keel, trails the CURRENT bar's tracker
+// inside a 0.5x corridor and only wakes once the tracker's accumulated
+// excursion beyond that corridor (summed over same-direction push bars in
+// ATR(200) units, kept through quiet bars, reset when the push direction
+// changes) reaches 1 ATR; while awake it follows every push, a non-push bar
+// puts it back to sleep. State = sign of the keel's last step.
+var klMult = 1.75;
+if (keelReactivity == "1") { klMult = 0.5; }
+else if (keelReactivity == "2") { klMult = 1.0; }
+else if (keelReactivity == "4") { klMult = 2.5; }
+else if (keelReactivity == "5") { klMult = 3.5; }
+var klRatio = 0.5;
+var klWakeDebt = 1.0;
+persist klTracker = na;
+persist klKeel = na;
+persist klDir = 0;
+persist klDebt = 0;
+persist klPushDir = 0;
+persist klAwake = false;
+var klStepUp = false;
+var klStepDn = false;
+var klFlipUp = false;
+var klFlipDn = false;
+var keelNow = na;
+if (needKeel && atrReady) {
+  var klTrackerWidth = klMult * atr200;
+  var klKeelWidth = klRatio * klMult * atr200;
+  if (isna(klTracker)) {
+    klTracker = C;
+    klKeel = C;
+  } else {
+    if (C - klTrackerWidth > klTracker) {
+      klTracker = C - klTrackerWidth;
+    } else if (C + klTrackerWidth < klTracker) {
+      klTracker = C + klTrackerWidth;
+    }
+    var klPd = 0;
+    if (klTracker - klKeelWidth > klKeel) {
+      klPd = 1;
+    } else if (klTracker + klKeelWidth < klKeel) {
+      klPd = -1;
+    }
+    if (klPd == 0) {
+      klAwake = false;
+    } else {
+      if (klPd != klPushDir) {
+        klDebt = 0;
+        klPushDir = klPd;
+      }
+      klDebt = klDebt + (math.abs(klTracker - klKeel) / atr200 - klRatio * klMult);
+      if (klAwake || klDebt >= klWakeDebt) {
+        klKeel = klPd == 1 ? klTracker - klKeelWidth : klTracker + klKeelWidth;
+        klAwake = true;
+        klDebt = 0;
+        if (klPd == 1) {
+          klStepUp = true;
+          if (klDir == -1) { klFlipUp = true; }
+        } else {
+          klStepDn = true;
+          if (klDir == 1) { klFlipDn = true; }
+        }
+        klDir = klPd;
+      }
+    }
+  }
+  keelNow = klKeel;
+}
+timeseries keel = keelNow;
+var klIsBull = klDir >= 0;
+
+// ============================================================================
+// TRAIL CLOUD
+// ============================================================================
+// Corridor width (period + 0.5) x ATR(200). The lead trails the close (hold
+// unless dragged to a corridor edge); the lag trails the CURRENT bar's lead
+// with the same width. Cloud state: bullish while lead > lag.
+var ncMult = tonumber(cloudPeriod) + 0.5;
+persist ncLead = 0;
+persist ncLag = 0;
+persist ncReady = false;
+persist ncState = 0;
+var ncLeadNow = na;
+var ncLagNow = na;
+var ncLeadStepUp = false;
+var ncLeadStepDown = false;
+var ncLagStepUp = false;
+var ncLagStepDown = false;
+var ncChanged = false;
+var ncFlippedBull = false;
+var ncFlippedBear = false;
+if (needCloud && atrReady) {
+  var ncDist = ncMult * atr200;
+  if (!ncReady) {
+    ncLeadNow = C;
+    ncLagNow = C;
+    ncReady = true;
+  } else {
+    ncLeadNow = ncLead;
+    if (C - ncDist > ncLead) {
+      ncLeadNow = C - ncDist;
+      ncLeadStepUp = true;
+    } else if (C + ncDist < ncLead) {
+      ncLeadNow = C + ncDist;
+      ncLeadStepDown = true;
+    }
+    ncLagNow = ncLag;
+    if (ncLeadNow - ncDist > ncLag) {
+      ncLagNow = ncLeadNow - ncDist;
+      ncLagStepUp = true;
+    } else if (ncLeadNow + ncDist < ncLag) {
+      ncLagNow = ncLeadNow + ncDist;
+      ncLagStepDown = true;
+    }
+  }
+  ncLead = ncLeadNow;
+  ncLag = ncLagNow;
+  var ncNow = ncState;
+  if (ncLeadNow > ncLagNow) {
+    ncNow = 1;
+  } else if (ncLeadNow < ncLagNow) {
+    ncNow = -1;
+  }
+  ncChanged = ncNow != ncState;
+  ncFlippedBull = ncNow == 1 && ncState == -1;
+  ncFlippedBear = ncNow == -1 && ncState == 1;
+  ncState = ncNow;
+}
+timeseries cloudLead = ncLeadNow;
+timeseries cloudLag = ncLagNow;
+var ncIsBull = ncState >= 0;
+// Price position vs the lead line (the cloud filter's rule), held through touches.
+persist ncPricePos = 0;
+if (!isna(ncLeadNow)) {
+  if (C > ncLeadNow) { ncPricePos = 1; }
+  else if (C < ncLeadNow) { ncPricePos = -1; }
+}
+
+// ============================================================================
+// TREND SIGNALS
+// ============================================================================
+// Model constants (not knobs): trigger band 1.9 x ATR(7) at sensitivity 12
+// (scales linearly with sensitivity), basis SMA(50) with a 0.1 ATR(60)
+// hysteresis, stretch unit ATR(60), trend strength window 72, gauge
+// thresholds 35/65 (contrarian), 25/75 (contrarian +), 70/30 (exit climax),
+// 55/45 (exit re-arm), 50 (contrarian re-arm and exit).
+var sgX = 1.9 * sensitivity / 12;
+var sgHystK = 0.1;
+var gLenRaw = math.round(6 + sensitivity / 2);
+var gLen = gLenRaw < 3 ? 3 : (gLenRaw > 100 ? 100 : gLenRaw);
+
+timeseries basis = sma(source=d.close, period=50);
+timeseries stretchUnit = atr(period=60, source=d);
+timeseries sgMid = (d.open + d.high + d.low + d.close) / 4;
+var sgAtr = atr(period=7, source=d);
+timeseries upMove = d.close > d.close[1] ? d.close - d.close[1] : 0;
+timeseries dnMove = d.close < d.close[1] ? d.close[1] - d.close : 0;
+timeseries avgUp = rma(source=upMove, period=gLen);
+timeseries avgDn = rma(source=dnMove, period=gLen);
+timeseries gauge = avgDn == 0 ? 100 : (avgUp == 0 ? 0 : 100 - 100 / (1 + avgUp / avgDn));
+timeseries one = 1;
+timeseries idx = cum(source=one);
+timeseries rr = correlation(s1=d.close, s2=idx, period=72);
+timeseries strength = 100 * rr * rr;
+timeseries strengthRegimeLine = 50;
+
+// 1. The trigger (signal state): ratcheting volatility bands around the bar's
+// average price. The lower band ratchets up while the previous close held
+// above it (the upper band ratchets down while the close held below it); a
+// close through the active band flips the state. Every flip is a signal.
+persist sgDir = 0;
+persist sgLower = na;
+persist sgUpper = na;
+var flipUp = false;
+var flipDn = false;
+if (!isna(sgAtr)) {
+  var sgLo = sgMid - sgX * sgAtr;
+  var sgHi = sgMid + sgX * sgAtr;
+  var sgPrevClose = d.close[1];
+  if (!isna(sgLower) && !isna(sgPrevClose) && sgPrevClose > sgLower && sgLo < sgLower) { sgLo = sgLower; }
+  if (!isna(sgUpper) && !isna(sgPrevClose) && sgPrevClose < sgUpper && sgHi > sgUpper) { sgHi = sgUpper; }
+  if (sgDir == 0) { sgDir = 1; }
+  else if (sgDir == 1 && !isna(sgLower) && C < sgLower) { sgDir = -1; flipDn = true; }
+  else if (sgDir == -1 && !isna(sgUpper) && C > sgUpper) { sgDir = 1; flipUp = true; }
+  sgLower = sgLo;
+  sgUpper = sgHi;
+}
+var dir = sgDir;
+
+// 2. The basis: side of the 50-bar average with a 0.1 ATR(60) hysteresis
+// band, held while the close sits inside the band.
+persist side = 0;
+var basisNow = basis;
+var stretchUnitNow = stretchUnit;
+if (!isna(basisNow)) {
+  var sgBand = isna(stretchUnitNow) ? 0 : sgHystK * stretchUnitNow;
+  if (C > basisNow + sgBand) { side = 1; }
+  else if (C < basisNow - sgBand) { side = -1; }
+}
+var strengthNow = strength;
+var tsOk = !filterTs || (!isna(strengthNow) && strengthNow > 50);
+
+// Overlay filters: a signal in direction sd is kept when the overlay agrees.
+func overlayAgrees(sd) {
+  var ok = true;
+  if (filterTrail && trDir != sd) { ok = false; }
+  if (filterStepper && stDir != sd) { ok = false; }
+  if (filterKeel && klDir != sd) { ok = false; }
+  if (filterCloud && ncPricePos != sd) { ok = false; }
+  return ok;
+}
+
+// Trend signals: every flip, graded by the basis; normal signals can
+// turn strong later. Filters suppress the marker (and the position it opens).
+persist openDir = 0;
+persist entry = na;
+persist graded = false;
+persist exitArmedB = true;
+persist exitArmedS = true;
+// Tape grade of the open position: sigAdj (-1 / 0 / +1) from tapeAdjust on
+// the signal bar, sigTag from open interest; the marker shade of a signal
+// fired this bar rides sigShade (3 = full color when the tape is silent).
+persist sigAdj = 0;
+persist sigTag = "";
+var sigShade = 3;
+var sigBull = false;
+var sigBear = false;
+var sigBullP = false;
+var sigBearP = false;
+var turnBull = false;
+var turnBear = false;
+if (flipUp || flipDn) {
+  var sd = flipUp ? 1 : -1;
+  var plus = side == sd;
+  var shown = tsOk && (!filterBasis || plus) && overlayAgrees(sd);
+  if (shown) {
+    if (sd == 1) {
+      if (plus) { sigBullP = true; } else { sigBull = true; }
+    } else {
+      if (plus) { sigBearP = true; } else { sigBear = true; }
+    }
+    openDir = sd;
+    entry = C;
+    graded = plus;
+    sigAdj = tapeAdjust(sd);
+    sigTag = flowTag(sd);
+    if (tapeReady) { sigShade = clampGrade((plus ? 3 : 2) + sigAdj) - 1; }
+  } else {
+    openDir = 0;
+    entry = na;
+    graded = true;
+    sigAdj = 0;
+    sigTag = "";
+  }
+  exitArmedB = true;
+  exitArmedS = true;
+} else if (openDir != 0 && !graded && side == openDir) {
+  if (openDir == 1) { turnBull = true; } else { turnBear = true; }
+  graded = true;
+}
+var bcv = (side != 0 && side == dir) ? dir : 0;
+
+// 3. The momentum gauge: confirmation exits, contrarian signals and exits.
+persist cArmB = true;
+persist cArmS = true;
+persist cArmBP = true;
+persist cArmSP = true;
+persist cOpenDir = 0;
+persist cEntry = na;
+persist cExitDone = true;
+persist cPlus = false;
+persist cAdj = 0;
+persist cTag = "";
+var cShade = 3;
+var g = gauge;
+var gp = gauge[1];
+var bullExit = false;
+var bearExit = false;
+var cBull = false;
+var cBullP = false;
+var cBear = false;
+var cBearP = false;
+if (!isna(g)) {
+  if (g < 55) { exitArmedB = true; }
+  if (g > 45) { exitArmedS = true; }
+  if (!isna(gp) && confirmMode && openDir == dir) {
+    if (openDir == 1 && exitArmedB && g > 70 && gp <= 70 && C > entry) { bullExit = true; exitArmedB = false; }
+    if (openDir == -1 && exitArmedS && g < 30 && gp >= 30 && C < entry) { bearExit = true; exitArmedS = false; }
+  }
+  if (g > 50) { cArmB = true; cArmBP = true; }
+  if (g < 50) { cArmS = true; cArmSP = true; }
+  var prevClose = d.close[1];
+  if (!isna(prevClose)) {
+    var counterDown = C < prevClose;
+    var counterUp = C > prevClose;
+    var fired = 0;
+    var firedPlus = false;
+    if (counterDown && g < 35 && (cArmB || (cArmBP && g < 25))) {
+      fired = 1;
+      firedPlus = g < 25;
+    } else if (counterUp && g > 65 && (cArmS || (cArmSP && g > 75))) {
+      fired = -1;
+      firedPlus = g > 75;
+    }
+    if (fired != 0) {
+      if (fired == 1) {
+        cArmB = false;
+        if (firedPlus) { cArmBP = false; }
+      } else {
+        cArmS = false;
+        if (firedPlus) { cArmSP = false; }
+      }
+      var cShown = tsOk && (!filterBasis || side == fired) && overlayAgrees(fired);
+      if (cShown) {
+        if (fired == 1) {
+          if (firedPlus) { cBullP = true; } else { cBull = true; }
+        } else {
+          if (firedPlus) { cBearP = true; } else { cBear = true; }
+        }
+        cOpenDir = fired;
+        cEntry = C;
+        cExitDone = false;
+        cPlus = firedPlus;
+        cAdj = tapeAdjust(fired);
+        cTag = flowTag(fired);
+        if (tapeReady) { cShade = clampGrade((firedPlus ? 3 : 2) + cAdj) - 1; }
+      }
+    }
+  }
+  if (!isna(gp) && contraMode && !cExitDone) {
+    if (cOpenDir == 1 && g > 50 && gp <= 50 && C > cEntry) { bullExit = true; cExitDone = true; }
+    if (cOpenDir == -1 && g < 50 && gp >= 50 && C < cEntry) { bearExit = true; cExitDone = true; }
+  }
+}
+// The flip bar closes the leg for both engines (a fade firing on the flip bar
+// was graded on the full leg above); the next leg starts on the following bar.
+if (flipUp || flipDn) {
+  legDelta = 0;
+  legTotal = 0;
+}
+// Grade of the open position on the 1..4 scale: base 2 (normal) or 3
+// (strong, including a later upgrade) plus the tape adjustment of its signal
+// bar; the tag rides along. Both feed the readout and the alert messages.
+var posGrade = confirmMode ? clampGrade((graded ? 3 : 2) + sigAdj) : clampGrade((cPlus ? 3 : 2) + cAdj);
+var posTag = confirmMode ? sigTag : cTag;
+// Built on signal event bars only: the engine evaluates every alert message
+// on every bar, and a fired alert only ever reads the note of its own bar.
+var sigEventBar = sigBull || sigBullP || sigBear || sigBearP || turnBull || turnBear || cBull || cBullP || cBear || cBearP;
+var gradeNote = (ofGradeSignals && sigEventBar) ? ", grade " + tostring(posGrade) + "/4" + (posTag != "" ? ", " + posTag : "") : "";
+// The signal events the TP/SL ladder can anchor on (the active mode's signals).
+var sigEvent = 0;
+if (confirmMode) {
+  if (sigBull || sigBullP) { sigEvent = 1; }
+  else if (sigBear || sigBearP) { sigEvent = -1; }
+} else if (contraMode) {
+  if (cBull || cBullP) { sigEvent = 1; }
+  else if (cBear || cBearP) { sigEvent = -1; }
+}
+
+// ============================================================================
+// TP/SL LADDER
+// ============================================================================
+// On a trigger event (direction e): dir = e, M = close, W = (Distance/2) x
+// ATR(200) frozen. Else if the close runs strictly beyond the outermost level
+// (M + dir x 2W with the trend, M - dir x 2W against it): M = close, W
+// refrozen, dir kept. Levels TP1 = M + dir W, TP2 = M + dir 2W, SL1 = M - dir
+// W, SL2 = M - dir 2W; the next uncrossed level per side is re-evaluated on
+// close (TP1 until the close is beyond it, then TP2; same on the stop side).
+var tpK = tpslDistance / 2;
+var tpEvt = 0;
+if (needTpsl) {
+  if (tpslSrc == "Signals") { tpEvt = sigEvent; }
+  else if (tpslSrc == "Adaptive Trail") { tpEvt = trFlipUp ? 1 : (trFlipDn ? -1 : 0); }
+  else if (tpslSrc == "Reversion Ladder") { tpEvt = lzReachedUpper3 ? 1 : (lzReachedLower3 ? -1 : 0); }
+  else if (tpslSrc == "Trend Stepper") { tpEvt = stFlip; }
+  else if (tpslSrc == "Trend Keel") { tpEvt = klFlipUp ? 1 : (klFlipDn ? -1 : 0); }
+  else if (tpslSrc == "Trail Cloud") { tpEvt = ncChanged ? ncState : 0; }
+}
+persist tpDir = 0;
+persist tpM = 0;
+persist tpHalfW = 0;
+var tpNewAnchor = 0;
+if (needTpsl) {
+  if (tpEvt != 0 && atrReady) {
+    tpDir = tpEvt;
+    tpM = C;
+    tpHalfW = tpK * atr200;
+    tpNewAnchor = 1;
+  } else if (tpDir != 0) {
+    var tpOuterPrev = tpM + tpDir * 2 * tpHalfW;
+    var slOuterPrev = tpM - tpDir * 2 * tpHalfW;
+    if (tpDir * (C - tpOuterPrev) > 0 || tpDir * (slOuterPrev - C) > 0) {
+      tpM = C;
+      tpHalfW = tpK * atr200;
+      tpNewAnchor = 2;
+    }
+  }
+}
+var tpLive = needTpsl && tpDir != 0;
+timeseries tpInner = tpLive ? tpM + tpDir * tpHalfW : na;
+timeseries tpOuter = tpLive ? tpM + tpDir * 2 * tpHalfW : na;
+timeseries slInner = tpLive ? tpM - tpDir * tpHalfW : na;
+timeseries slOuter = tpLive ? tpM - tpDir * 2 * tpHalfW : na;
+// Progress flags: 1 once the close is beyond the inner level of that side.
+var tpProgressed = tpLive ? (tpDir * (C - (tpM + tpDir * tpHalfW)) > 0 ? 1 : 0) : 0;
+var slProgressed = tpLive ? (tpDir * ((tpM - tpDir * tpHalfW) - C) > 0 ? 1 : 0) : 0;
+timeseries activeTP = tpLive ? (tpProgressed == 1 ? tpM + tpDir * 2 * tpHalfW : tpM + tpDir * tpHalfW) : na;
+timeseries activeSL = tpLive ? (slProgressed == 1 ? tpM - tpDir * 2 * tpHalfW : tpM - tpDir * tpHalfW) : na;
+persist tpProgPrev = 0;
+persist slProgPrev = 0;
+var tp1Reached = tpNewAnchor == 0 && tpProgressed == 1 && tpProgPrev == 0;
+var sl1Breached = tpNewAnchor == 0 && slProgressed == 1 && slProgPrev == 0;
+tpProgPrev = tpProgressed;
+slProgPrev = slProgressed;
+
+// ============================================================================
+// VIEW
+// ============================================================================
+// Fill opacities ride the 0..1 scale the chart renderer reads.
+
+// ---- candle coloring ----
+var stretch = (!isna(basisNow) && !isna(stretchUnitNow) && stretchUnitNow > 0) ? (C - basisNow) / stretchUnitNow : na;
+var candleColor = neutralCandle;
+if (coloring == "Confirmation Simple") {
+  candleColor = bcv == 1 ? strongBullCandle : (bcv == -1 ? strongBearCandle : neutralCandle);
+} else if (coloring == "Confirmation Gradient") {
+  if (!isna(stretch)) {
+    var raw = dir * stretch / 2;
+    var intensity = raw < 0 ? 0 : (raw > 1 ? 1 : raw);
+    candleColor = blend(neutralCandle, dir == 1 ? strongBullCandle : strongBearCandle, intensity);
+  }
+} else if (coloring == "Contrarian Gradient") {
+  if (!isna(g)) {
+    var osRaw = (50 - g) / 25;
+    var os = osRaw < -1 ? -1 : (osRaw > 1 ? 1 : osRaw);
+    candleColor = os > 0 ? blend(neutralCandle, strongBullCandle, os) : blend(neutralCandle, strongBearCandle, 0 - os);
+  }
+} else if (deltaColoring) {
+  // Real aggression: the 3-bar taker delta share in the signal's direction,
+  // full color at 30 points; the inferred gradient where the tape is silent.
+  if (sidedNow && isnum(share3Now)) {
+    var dRaw = dir * share3Now / 0.3;
+    var dInt = dRaw < 0 ? 0 : (dRaw > 1 ? 1 : dRaw);
+    candleColor = blend(neutralCandle, dir == 1 ? strongBullCandle : strongBearCandle, dInt);
+  } else if (!isna(stretch)) {
+    var dRaw2 = dir * stretch / 2;
+    var dInt2 = dRaw2 < 0 ? 0 : (dRaw2 > 1 ? 1 : dRaw2);
+    candleColor = blend(neutralCandle, dir == 1 ? strongBullCandle : strongBearCandle, dInt2);
+  }
+}
+if (coloring != "None") {
+  barcolor(color=candleColor);
+}
+
+// ---- overlays (drawn under the markers) ----
+if (trailOn) {
+  var trStateColor = trIsBull ? trailBullColor : trailBearColor;
+  // Tightness 0 = stop at full width (fresh extreme), 1 = fully tightened.
+  var trTightness = 0;
+  if (!isna(trDist) && !isna(trFullWidth) && trFullWidth > 0) {
+    trTightness = (trFullWidth - trDist) / (trFullWidth * (1 - trFloorFrac));
+    if (trTightness < 0) { trTightness = 0; }
+    if (trTightness > 1) { trTightness = 1; }
+  }
+  // The renderer joins fillBetween rows into one polygon only while consecutive
+  // bars share the color, and drops single-bar runs, so the fade is quantized to
+  // three steps (a per-bar blend would leave nothing to draw).
+  var trFadeStep = trTightness < 0.33 ? 0 : (trTightness < 0.66 ? 0.35 : 0.7);
+  var trBufferColor = trailFade ? blend(trStateColor, "#8a93a6", trFadeStep) : trStateColor;
+  if (trailBuffer) {
+    fillBetween(series1=trail, series2=trailEdgeLine, color=trBufferColor, opacity=trailBufferOpacity / 100);
+  }
+  plotLine(value=trail, colors=[trailBullColor, trailBearColor], colorIndex=trIsBull ? 0 : 1,
+    width=2, smooth=false,
+    label=["Adaptive Trail"],
+    desc=["Volatility-responsive trailing stop: one width (multiplier x ATR(21)) from the leg's extreme close, easing away from price on pullbacks and tightening while the trend stalls. Flips when the close crosses it."]);
+  if (trailEdge) {
+    plotLine(value=trailEdgeLine, colors=[trailBullColor, trailBearColor], colorIndex=trIsBull ? 0 : 1,
+      width=1, smooth=false, lineStyle="dotted", showPriceDisplay=false,
+      label=["Trail Buffer Edge"],
+      desc=["Far edge of the buffer: a quarter of the current width inside the trail. A dip into the buffer that closes back on the trend side is a test, not a flip."]);
+  }
+}
+
+if (ladderOn) {
+  // Band fill = edge color at the edge's alpha (renderer fact above): the
+  // rung edges carry the zone shade, the outer band 1.75x denser.
+  var lzInnerFill = opacity(ladderUpperColor, ladderOpacity);
+  var lzOuterPct = ladderOpacity * 1.75 > 100 ? 100 : ladderOpacity * 1.75;
+  var lzInnerFillDn = opacity(ladderLowerColor, ladderOpacity);
+  var lzOuterFill = opacity(ladderUpperColor, lzOuterPct);
+  var lzOuterFillDn = opacity(ladderLowerColor, lzOuterPct);
+  plotLine(value=[ladderUp1, ladderUp2], fill=true, colors=[lzInnerFill, lzInnerFill, lzInnerFill, lzInnerFill],
+    width=1, smooth=false, showPriceDisplay=false,
+    label=["Upper Rung 1", "Upper Rung 2"],
+    desc=["Inner edge of the top zone: balance + (2 + 0.6 x spacing) x ATR(14 x spacing). A close above it is the first over-extension warning.", "Middle rung of the top zone at 1.5x the inner offset."]);
+  plotLine(value=[ladderUp2, ladderUp3], fill=true, colors=[lzOuterFill, lzOuterFill, lzOuterFill, lzOuterFill],
+    width=1, smooth=false, showPriceDisplay=false,
+    label=["Upper Rung 2 (outer band)", "Upper Rung 3"],
+    desc=["Middle rung of the top zone (the outer band starts here).", "Outer rung of the top zone at 2x the inner offset: the most stretched level the ladder marks. Price can still run past it in a strong trend."]);
+  plotLine(value=[ladderDn2, ladderDn1], fill=true, colors=[lzInnerFillDn, lzInnerFillDn, lzInnerFillDn, lzInnerFillDn],
+    width=1, smooth=false, showPriceDisplay=false,
+    label=["Lower Rung 2", "Lower Rung 1"],
+    desc=["Middle rung of the bottom zone at 1.5x the inner offset.", "Inner edge of the bottom zone: balance - (2 + 0.6 x spacing) x ATR(14 x spacing). A close below it is the first over-extension warning."]);
+  plotLine(value=[ladderDn3, ladderDn2], fill=true, colors=[lzOuterFillDn, lzOuterFillDn, lzOuterFillDn, lzOuterFillDn],
+    width=1, smooth=false, showPriceDisplay=false,
+    label=["Lower Rung 3", "Lower Rung 2 (outer band)"],
+    desc=["Outer rung of the bottom zone at 2x the inner offset: the most stretched level the ladder marks. Price can still run past it in a strong sell-off.", "Middle rung of the bottom zone (the outer band starts here)."]);
+  if (ladderBalance) {
+    plotLine(value=ladderBalanceLine, colors=[ladderBalanceColor], width=1, smooth=false, lineStyle="dotted",
+      label=["Balance Line"],
+      desc=["Center of the ladder: EMA of closes over 21 x spacing bars. Closes above it lean toward the top zone, below it toward the bottom zone."]);
+  }
+}
+
+if (stepperOn) {
+  plotLine(value=stepperLine, colors=[stepperBullColor, stepperBearColor], colorIndex=stIsBull ? 0 : 1,
+    width=2, smooth=false,
+    label=["Trend Stepper"],
+    desc=["Accelerating mirror-stop stepper on closes: holds flat, fires toward each new extreme close, flips when the close crosses the mirrored stop."]);
+}
+
+if (keelOn) {
+  var klColor = klIsBull ? keelBullColor : keelBearColor;
+  if (keelBand) {
+    fillBetween(series1=keel, series2=d.close, color=klColor, opacity=keelBandOpacity / 100);
+  }
+  plotLine(value=keel, colors=[keelBullColor, keelBearColor], colorIndex=klIsBull ? 0 : 1,
+    width=2, smooth=false,
+    label=["Trend Keel"],
+    desc=["Slow trend line: trails an inner tracker inside a half-size ATR(200) corridor and wakes once the tracker's accumulated push beyond it reaches 1 ATR. Rising while its last step was up, falling while down."]);
+}
+
+if (cloudOn) {
+  var ncBullFill = opacity(cloudBullColor, cloudOpacity);
+  var ncBearFill = opacity(cloudBearColor, cloudOpacity);
+  // The band's fill is its first edge while the lead is above the lag and
+  // its second edge below it (renderer fact above), so the two edges ARE the
+  // bullish and bearish cloud shades; the lead and lag lines are their own plots.
+  plotLine(value=[cloudLead, cloudLag], fill=true, colors=[ncBullFill, ncBearFill, ncBullFill, ncBearFill],
+    width=1, smooth=false, showPriceDisplay=false,
+    label=["Cloud (lead edge)", "Cloud (lag edge)"],
+    desc=["The cloud between the lead and lag lines: rising color while the lead is above the lag, falling color below.", "The cloud's slow edge (the lag line is drawn by its own plot)."]);
+  plotLine(value=cloudLag, colors=[cloudLagColor], width=1, smooth=false, lineStyle="dotted", showPriceDisplay=false,
+    label=["Cloud Lag"],
+    desc=["Slow edge of the cloud: the lead line's own trailing corridor line. Only moves after the lead has moved."]);
+  plotLine(value=cloudLead, colors=[cloudBullColor, cloudBearColor], colorIndex=ncIsBull ? 0 : 1,
+    width=2, smooth=false,
+    label=["Cloud Lead"],
+    desc=["Fast edge of the cloud: the close's trailing corridor line. Holds flat, then steps when price drags it."]);
+}
+
+if (needTpsl) {
+  // The band fill is its edge color at the edge's alpha (renderer fact
+  // above): the inner and outer level edges carry the zone shade; the
+  // current ladder's levels read from the dashed level lines and price tags.
+  var tpFill = opacity(tpColor, tpslZones ? tpslZoneOpacity : 0);
+  var slFill = opacity(slColor, tpslZones ? tpslZoneOpacity : 0);
+  plotLine(value=[tpInner, tpOuter], fill=true, colors=[tpFill, tpFill, tpFill, tpFill],
+    width=1, smooth=false,
+    label=["TP 1", "TP 2"],
+    desc=["First take-profit level, half a spacing from the anchor.", "Outer take-profit level, one full spacing from the anchor."]);
+  plotLine(value=[slInner, slOuter], fill=true, colors=[slFill, slFill, slFill, slFill],
+    width=1, smooth=false,
+    label=["SL 1", "SL 2"],
+    desc=["First stop-loss level, half a spacing from the anchor.", "Outer stop-loss level, one full spacing from the anchor."]);
+  if (tpslHighlightNext) {
+    plotLine(value=activeTP, colors=[opacity(tpColor, 30)], width=5, glow=true, smooth=false,
+      showPriceDisplay=false, label=["Next Target"],
+      desc=["The nearest take-profit level price has not yet closed beyond: TP1, then TP2."]);
+    plotLine(value=activeSL, colors=[opacity(slColor, 30)], width=5, glow=true, smooth=false,
+      showPriceDisplay=false, label=["Next Stop"],
+      desc=["The nearest stop-loss level price has not yet closed beyond: SL1, then SL2."]);
+  }
+}
+
+// ---- markers (series plots; one plot per marker family) ----
+if (showBasis) {
+  plotLine(value=basis, colors=["#8a93a6"], width=1, smooth=false, lineStyle="dotted",
+    label=["Basis"],
+    desc=["50-bar simple average of closes: the trend basis the signals are graded against. Above it, long signals are strong; below it, short signals are strong."]);
+}
+// Marker shades: the tape grade picks one of four intensities (40 / 60 / 80 /
+// 100%); index 3 (full color) whenever the tape is silent or grading is off.
+// Built once (inputs are constant for a run; opacity() parses colors).
+persist longShades = [];
+persist shortShades = [];
+if (longShades.length == 0) {
+  longShades.push(opacity(bullSignalColor, 40)); longShades.push(opacity(bullSignalColor, 60)); longShades.push(opacity(bullSignalColor, 80)); longShades.push(bullSignalColor);
+  shortShades.push(opacity(bearSignalColor, 40)); shortShades.push(opacity(bearSignalColor, 60)); shortShades.push(opacity(bearSignalColor, 80)); shortShades.push(bearSignalColor);
+}
+if (confirmMode) {
+  plotShape(value=sigBull ? d.low : na, shape="triangleUp", location="belowBar",
+    colors=longShades, colorIndex=sigShade, width=6, fill=false,
+    label=["Long Signal"], desc=["Normal long signal: the trigger band flipped up while the close was still below the 50-bar basis (a pullback entry). Turns strong when the close crosses above the basis. Fill intensity = the tape grade (Order Flow)."]);
+  plotShape(value=sigBullP ? d.low : na, shape="triangleUp", location="belowBar",
+    colors=longShades, colorIndex=sigShade, width=9, fill=true, glow=3,
+    label=["Strong Long Signal"], desc=["Strong long signal: the trigger band flipped up with the close already above the 50-bar basis (with the trend). Fill intensity = the tape grade (Order Flow)."]);
+  plotShape(value=sigBear ? d.high : na, shape="triangleDown", location="aboveBar",
+    colors=shortShades, colorIndex=sigShade, width=6, fill=false,
+    label=["Short Signal"], desc=["Normal short signal: the trigger band flipped down while the close was still above the 50-bar basis (a pullback entry). Turns strong when the close crosses below the basis. Fill intensity = the tape grade (Order Flow)."]);
+  plotShape(value=sigBearP ? d.high : na, shape="triangleDown", location="aboveBar",
+    colors=shortShades, colorIndex=sigShade, width=9, fill=true, glow=3,
+    label=["Strong Short Signal"], desc=["Strong short signal: the trigger band flipped down with the close already below the 50-bar basis (with the trend). Fill intensity = the tape grade (Order Flow)."]);
+  if (showTurnMarkers) {
+    plotShape(value=turnBull ? d.low - lift : (turnBear ? d.high + lift : na), shape="diamond", location="absolute",
+      colors=[bullSignalColor, bearSignalColor], colorIndex=turnBull ? 0 : 1, width=4, fill=true,
+      label=["Signal Upgrade"], desc=["A normal signal turned strong: the close crossed to the signal's side of the 50-bar basis (below the bar for a long signal, above it for a short one)."]);
+  }
+}
+if (contraMode) {
+  plotShape(value=cBull ? d.low : na, shape="circle", location="belowBar",
+    colors=longShades, colorIndex=cShade, width=5, fill=false,
+    label=["Long Fade"], desc=["Counter-trend buy: a down bar with the momentum gauge under 35, once per swing (re-arms when the gauge is back over 50)."]);
+  plotShape(value=cBullP ? d.low : na, shape="circle", location="belowBar",
+    colors=longShades, colorIndex=cShade, width=8, fill=true, glow=3,
+    label=["Strong Long Fade"], desc=["Strong counter-trend buy: a down bar with the momentum gauge under 25 (deeply oversold)."]);
+  plotShape(value=cBear ? d.high : na, shape="circle", location="aboveBar",
+    colors=shortShades, colorIndex=cShade, width=5, fill=false,
+    label=["Short Fade"], desc=["Counter-trend sell: an up bar with the momentum gauge over 65, once per swing (re-arms when the gauge is back under 50)."]);
+  plotShape(value=cBearP ? d.high : na, shape="circle", location="aboveBar",
+    colors=shortShades, colorIndex=cShade, width=8, fill=true, glow=3,
+    label=["Strong Short Fade"], desc=["Strong counter-trend sell: an up bar with the momentum gauge over 75 (deeply overbought)."]);
+}
+if (confirmMode || contraMode) {
+  plotShape(value=bullExit ? d.high + lift : (bearExit ? d.low - lift : na), shape="cross", location="absolute",
+    colors=[exitBullColor, exitBearColor], colorIndex=bullExit ? 0 : 1, width=6, fill=true,
+    label=["Exit Cross"], desc=["Exit from the open position (above the bar for a long, below it for a short). Trend entries: a momentum climax (gauge crossed 70 / 30) while in profit versus the signal close, re-armed once the gauge cools (55 / 45) so a long trend can exit more than once. Fade entries: the gauge crossed back through 50 in profit, once per signal."]);
+}
+if (overlayFlipMarkers) {
+  if (trailOn) {
+    plotShape(value=trFlipUp ? d.low - lift : (trFlipDn ? d.high + lift : na), shape="circle", location="absolute",
+      colors=[trailBullColor, trailBearColor], colorIndex=trFlipUp ? 0 : 1, width=6, fill=true,
+      label=["Trail Flip"], desc=["The close crossed the adaptive trail: trend flipped (below the bar = up, above = down)."]);
+  }
+  if (stepperOn) {
+    plotShape(value=stFlipUp ? d.low - lift : (stFlipDn ? d.high + lift : na), shape="circle", location="absolute",
+      colors=[stepperBullColor, stepperBearColor], colorIndex=stFlipUp ? 0 : 1, width=5, fill=true,
+      label=["Stepper Flip"], desc=["The trend stepper flipped to a new leg (below the bar = up leg, above = down leg)."]);
+  }
+  if (keelOn) {
+    plotShape(value=klFlipUp ? d.low - lift : (klFlipDn ? d.high + lift : na), shape="circle", location="absolute",
+      colors=[keelBullColor, keelBearColor], colorIndex=klFlipUp ? 0 : 1, width=7, fill=true,
+      label=["Keel Turn"], desc=["The keel turned after a phase in the other direction (below the bar = turned up, above = turned down)."]);
+  }
+  if (cloudOn) {
+    plotShape(value=ncFlippedBull ? d.low - lift : (ncFlippedBear ? d.high + lift : na), shape="circle", location="absolute",
+      colors=[cloudBullColor, cloudBearColor], colorIndex=ncFlippedBull ? 0 : 1, width=6, fill=true,
+      label=["Cloud Flip"], desc=["The cloud flipped: the lead crossed the lag (below the bar = rising, above = falling)."]);
+  }
+}
+if (ladderOn && ladderEntryMarkers) {
+  plotShape(value=lzEnteredUpper ? d.high + lift : (lzEnteredLower ? d.low - lift : na), shape="square", location="absolute",
+    colors=[ladderUpperColor, ladderLowerColor], colorIndex=lzEnteredUpper ? 0 : 1, width=4, fill=true,
+    label=["Zone Entry"], desc=["First close inside a reversion zone after being outside it: above the bar for the top zone (watch for a high), below it for the bottom zone (watch for a low)."]);
+}
+if (needTpsl && tpslAnchorMarkers) {
+  var tpMarkY = na;
+  var tpMarkIdx = 2;
+  if (tpNewAnchor == 1 && tpDir == 1) { tpMarkY = d.low - lift; tpMarkIdx = 0; }
+  else if (tpNewAnchor == 1) { tpMarkY = d.high + lift; tpMarkIdx = 1; }
+  else if (tpNewAnchor == 2) { tpMarkY = tpM; }
+  plotShape(value=tpMarkY, shape="flag", location="absolute",
+    colors=[tpColor, slColor, anchorColor], colorIndex=tpMarkIdx, width=5, fill=true,
+    label=["TP/SL Anchor"], desc=["A ladder was anchored here: below the bar for a long ladder, above it for a short one, at the anchor price when the ladder re-centered after price ran beyond its outermost level."]);
+}
+
+// ---- TP/SL price tags + level lines (drawings, last bar only) ----
+// Tags read "TP1 <price>" (2 decimals for prices >= 1, else 4) 15 bars right
+// of the last bar; each level's dashed line runs from the bar after the
+// ladder's anchor to the same x. The optional Entry tag marks the anchor.
+persist tpAnchorTime = na;
+if (tpNewAnchor != 0) { tpAnchorTime = d.time[0]; }
+persist tpTags = [];
+persist tpLines = [];
+persist tpEntryTag = [];
+if (needTpsl && isLastBar && tpDir != 0 && (tpslPriceTags || tpslLevelLines)) {
+  var tagX = d.time[0] + 15 * currentInterval;
+  var lineX1 = isna(tpAnchorTime) ? d.time[0] : tpAnchorTime + currentInterval;
+  var tp2Y = tpM + tpDir * 2 * tpHalfW;
+  var tp1Y = tpM + tpDir * tpHalfW;
+  var sl1Y = tpM - tpDir * tpHalfW;
+  var sl2Y = tpM - tpDir * 2 * tpHalfW;
+  var priceFmt = tpM >= 1 ? "0.00" : "0.0000";
+  if (tpslPriceTags) {
+    var tp2Text = "TP2 " + tostring(tp2Y, priceFmt);
+    var tp1Text = "TP1 " + tostring(tp1Y, priceFmt);
+    var sl1Text = "SL1 " + tostring(sl1Y, priceFmt);
+    var sl2Text = "SL2 " + tostring(sl2Y, priceFmt);
+    if (tpTags.length == 0) {
+      tpTags.push(label.new(tagX, tp2Y, tp2Text, {color: "#0b1512", bgcolor: darken(tpColor, 14), size: 9}));
+      tpTags.push(label.new(tagX, tp1Y, tp1Text, {color: "#0b1512", bgcolor: tpColor, size: 9}));
+      tpTags.push(label.new(tagX, sl1Y, sl1Text, {color: "#1a0d10", bgcolor: slColor, size: 9}));
+      tpTags.push(label.new(tagX, sl2Y, sl2Text, {color: "#1a0d10", bgcolor: darken(slColor, 14), size: 9}));
+    } else {
+      tpTags[0].set_xy(tagX, tp2Y); tpTags[0].set_text(tp2Text);
+      tpTags[1].set_xy(tagX, tp1Y); tpTags[1].set_text(tp1Text);
+      tpTags[2].set_xy(tagX, sl1Y); tpTags[2].set_text(sl1Text);
+      tpTags[3].set_xy(tagX, sl2Y); tpTags[3].set_text(sl2Text);
+    }
+    if (tpslEntryTag) {
+      if (tpEntryTag.length == 0) {
+        tpEntryTag.push(label.new(tagX, tpM, "Entry " + tostring(tpM, priceFmt), {color: "#e8e3d8", bgcolor: anchorColor, size: 9}));
+      } else {
+        tpEntryTag[0].set_xy(tagX, tpM); tpEntryTag[0].set_text("Entry " + tostring(tpM, priceFmt));
+      }
+    }
+  }
+  if (tpslLevelLines) {
+    if (tpLines.length == 0) {
+      tpLines.push(line.new(lineX1, tp2Y, tagX, tp2Y, {color: tpColor, width: 1, lineStyle: "dashed"}));
+      tpLines.push(line.new(lineX1, tp1Y, tagX, tp1Y, {color: tpColor, width: 1, lineStyle: "dashed"}));
+      tpLines.push(line.new(lineX1, sl1Y, tagX, sl1Y, {color: slColor, width: 1, lineStyle: "dashed"}));
+      tpLines.push(line.new(lineX1, sl2Y, tagX, sl2Y, {color: slColor, width: 1, lineStyle: "dashed"}));
+    } else {
+      tpLines[0].set_xy(lineX1, tp2Y, tagX, tp2Y);
+      tpLines[1].set_xy(lineX1, tp1Y, tagX, tp1Y);
+      tpLines[2].set_xy(lineX1, sl1Y, tagX, sl1Y);
+      tpLines[3].set_xy(lineX1, sl2Y, tagX, sl2Y);
+    }
+  }
+}
+
+// ============================================================================
+// ALERTS (declared for the entry logic and the components in use)
+// ============================================================================
+if (confirmMode) {
+  alertcondition(condition=sigBull, title="Long signal", message="Signal engine: normal long signal" + gradeNote);
+  alertcondition(condition=sigBear, title="Short signal", message="Signal engine: normal short signal" + gradeNote);
+  alertcondition(condition=sigBullP || turnBull, title="Strong long signal", message="Signal engine: strong long signal active (new or upgraded)" + gradeNote);
+  alertcondition(condition=sigBearP || turnBear, title="Strong short signal", message="Signal engine: strong short signal active (new or upgraded)" + gradeNote);
+}
+if (contraMode) {
+  alertcondition(condition=cBull || cBullP, title="Long fade signal", message="Signal engine: long fade (counter-trend) signal" + gradeNote);
+  alertcondition(condition=cBear || cBearP, title="Short fade signal", message="Signal engine: short fade (counter-trend) signal" + gradeNote);
+}
+if (confirmMode || contraMode) {
+  alertcondition(condition=bullExit, title="Long exit", message="Signal engine: exit the long position");
+  alertcondition(condition=bearExit, title="Short exit", message="Signal engine: exit the short position");
+}
+if (trailOn) {
+  var trTestedBull = trIsBull && !trFlipUp && !isna(trEdgeNow) && d.low <= trEdgeNow && C > trailNow;
+  var trTestedBear = !trIsBull && !trFlipDn && !isna(trEdgeNow) && d.high >= trEdgeNow && C < trailNow;
+  alertcondition(condition=trFlipUp, title="Trail switched bullish", message="Adaptive Trail: close crossed above the trail, trend flipped up");
+  alertcondition(condition=trFlipDn, title="Trail switched bearish", message="Adaptive Trail: close crossed below the trail, trend flipped down");
+  alertcondition(condition=trTestedBull, title="Buffer tested in up trend", message="Adaptive Trail: price dipped into the buffer and held above the trail");
+  alertcondition(condition=trTestedBear, title="Buffer tested in down trend", message="Adaptive Trail: price rallied into the buffer and held below the trail");
+}
+if (ladderOn) {
+  alertcondition(condition=lzEnteredUpper, title="Entered upper zone", message="Reversion Ladder: close entered the top zone (above rung 1)");
+  alertcondition(condition=lzEnteredLower, title="Entered lower zone", message="Reversion Ladder: close entered the bottom zone (below rung 1)");
+  alertcondition(condition=lzCrossedUp, title="Crossed balance line up", message="Reversion Ladder: close crossed above the balance line");
+  alertcondition(condition=lzCrossedDown, title="Crossed balance line down", message="Reversion Ladder: close crossed below the balance line");
+  alertcondition(condition=lzReachedUpper3, title="Reached upper rung 3", message="Reversion Ladder: close cleared the outer top rung");
+  alertcondition(condition=lzReachedLower3, title="Reached lower rung 3", message="Reversion Ladder: close cleared the outer bottom rung");
+}
+if (stepperOn) {
+  alertcondition(condition=stFlipUp, title="Stepper flipped up", message="Trend Stepper: flipped to an up leg");
+  alertcondition(condition=stFlipDn, title="Stepper flipped down", message="Trend Stepper: flipped to a down leg");
+}
+if (keelOn) {
+  alertcondition(condition=klFlipUp, title="Keel turned up", message="Trend Keel turned up");
+  alertcondition(condition=klFlipDn, title="Keel turned down", message="Trend Keel turned down");
+  alertcondition(condition=klStepUp, title="Keel stepped up", message="Trend Keel stepped up");
+  alertcondition(condition=klStepDn, title="Keel stepped down", message="Trend Keel stepped down");
+}
+if (cloudOn) {
+  alertcondition(condition=ncLeadStepUp, title="Cloud lead stepped up", message="Trail Cloud lead line stepped up");
+  alertcondition(condition=ncLeadStepDown, title="Cloud lead stepped down", message="Trail Cloud lead line stepped down");
+  alertcondition(condition=ncLagStepUp, title="Cloud lag stepped up", message="Trail Cloud lag line stepped up");
+  alertcondition(condition=ncLagStepDown, title="Cloud lag stepped down", message="Trail Cloud lag line stepped down");
+  alertcondition(condition=ncFlippedBull, title="Cloud flipped bullish", message="Trail Cloud flipped to rising");
+  alertcondition(condition=ncFlippedBear, title="Cloud flipped bearish", message="Trail Cloud flipped to falling");
+}
+if (needTpsl) {
+  alertcondition(condition=tpNewAnchor == 1 && tpDir == 1, title="Long TP/SL anchor", message="New long TP/SL ladder anchored");
+  alertcondition(condition=tpNewAnchor == 1 && tpDir == -1, title="Short TP/SL anchor", message="New short TP/SL ladder anchored");
+  alertcondition(condition=tpNewAnchor == 2, title="TP/SL re-centered", message="Price ran beyond the outermost level; ladder re-centered");
+  alertcondition(condition=tp1Reached, title="TP1 reached", message="Price closed beyond TP1; next target TP2");
+  alertcondition(condition=sl1Breached, title="SL1 breached", message="Price closed beyond SL1; next stop SL2");
+}
+var strengthUp = crossover(seriesA=strength, seriesB=strengthRegimeLine);
+var strengthDown = crossunder(seriesA=strength, seriesB=strengthRegimeLine);
+alertcondition(condition=strengthUp, title="Trend strength above 50", message="Trend strength crossed above 50: trending");
+alertcondition(condition=strengthDown, title="Trend strength below 50", message="Trend strength crossed below 50: ranging");
+
+// ============================================================================
+// DASHBOARD
+// ============================================================================
+if (isLastBar && dashLocation != "Hidden") {
+  var pos = dashLocation == "Top Right" ? "top_right" : (dashLocation == "Bottom Left" ? "bottom_left" : "bottom_right");
+  var fontSize = dashSize == "Tiny" ? 9 : (dashSize == "Small" ? 11 : (dashSize == "Normal" ? 13 : 16));
+  var stateText = "none";
+  var stateColor = neutralCandle;
+  if (confirmMode && openDir != 0) {
+    stateText = openDir == 1 ? (graded ? "Long +" : "Long") : (graded ? "Short +" : "Short");
+    stateColor = openDir == 1 ? bullSignalColor : bearSignalColor;
+  } else if (contraMode && cOpenDir != 0) {
+    stateText = cOpenDir == 1 ? (cExitDone ? "Long fade (exited)" : "Long fade") : (cExitDone ? "Short fade (exited)" : "Short fade");
+    stateColor = cOpenDir == 1 ? bullSignalColor : bearSignalColor;
+  }
+  var haveStrength = isna(strengthNow) ? false : true;
+  var strengthText = haveStrength ? tostring(math.round(strengthNow * 10) / 10) + "%" : "warming up";
+  var trending = haveStrength && strengthNow > 50 ? true : false;
+  var haveGauge = isna(g) ? false : true;
+  var gaugeText = haveGauge ? tostring(math.round(g)) + (g < 35 ? " oversold" : (g > 65 ? " overbought" : " neutral")) : "warming up";
+  var rows = [];
+  var sigCell = stateText;
+  if (stateText != "none" && ofGradeSignals) {
+    sigCell = sigCell + " | " + tostring(posGrade) + "/4";
+    if (posTag != "") { sigCell = sigCell + " | " + posTag; }
+  }
+  rows.push([{value: "TREND SIGNALS", colspan: 2, align: "center", color: dashColor, textColor: "#e8e3d8"}]);
+  rows.push([{value: "Signal"}, {value: sigCell, textColor: stateColor, align: "right", tooltip: "Last signal of the active entry logic; + means the close is on the signal's side of the 50-bar basis; the 1..4 grade adds the tape's verdict (Order Flow) and the tag reads open interest (perps)."}]);
+  if (ofDashRows) {
+    var aggText = "n/a";
+    var aggColor = neutralCandle;
+    if (sidedNow) {
+      aggText = (barShare >= 0 ? "+" : "") + tostring(math.round(barShare * 100)) + "% bar / " + (legTotal > 0 ? ((legDelta >= 0 ? "+" : "") + tostring(math.round(100 * legDelta / legTotal)) + "% leg") : "n/a leg");
+      aggColor = barShare > 0.05 ? bullSignalColor : (barShare < -0.05 ? bearSignalColor : neutralCandle);
+    }
+    rows.push([{value: "Aggression"}, {value: aggText, textColor: aggColor, align: "right", tooltip: "Taker delta share, (buy - sell) / (buy + sell): the last bar and the leg since the last signal. n/a where no sided tape exists."}]);
+    var flowText = "n/a";
+    var flowColor = neutralCandle;
+    if (isnum(share20Now)) {
+      flowText = (share20Now > 0.02 ? "buyers " : (share20Now < -0.02 ? "sellers " : "balanced ")) + (share20Now >= 0 ? "+" : "") + tostring(math.round(share20Now * 100)) + "%";
+      flowColor = share20Now > 0.02 ? bullSignalColor : (share20Now < -0.02 ? bearSignalColor : neutralCandle);
+    }
+    rows.push([{value: "Flow"}, {value: flowText, textColor: flowColor, align: "right", tooltip: "Net taker delta over the last 20 bars as a share of the volume traded: the slope of cumulative delta. n/a where no sided tape exists."}]);
+  }
+  if (showStrengthRow) {
+    rows.push([{value: "Trend Strength"}, {value: strengthText, textColor: trending ? bullSignalColor : neutralCandle, align: "right", tooltip: "R-squared of a 72-bar regression of close on time. Above 50% = trending."}]);
+  }
+  if (showMomentumRow) {
+    rows.push([{value: "Momentum"}, {value: gaugeText, textColor: haveGauge && g < 35 ? bullSignalColor : (haveGauge && g > 65 ? bearSignalColor : neutralCandle), align: "right", tooltip: "Wilder RSI over 6 + trigger width / 2 bars: the gauge behind exits and fade signals."}]);
+    rows.push([{value: "Trigger"}, {value: tostring(sensitivity) + " (gauge " + tostring(gLen) + ")", align: "right", tooltip: "Trigger width and the momentum gauge length it implies."}]);
+  }
+  if (showOverlayRows) {
+    if (trailOn) {
+      rows.push([{value: "Adaptive Trail"}, {value: isna(trailNow) ? "warming up" : (trIsBull ? "Up trend" : "Down trend"), textColor: trIsBull ? trailBullColor : trailBearColor, align: "right", tooltip: "Price above the trail = up trend, below = down trend."}]);
+    }
+    if (ladderOn) {
+      var lzText = isna(lzBalanceNow) ? "warming up" : (lzZone > 0 ? "Top zone " + tostring(lzZone) : (lzZone < 0 ? "Bottom zone " + tostring(0 - lzZone) : (lzSide == 1 ? "Above balance" : "Below balance")));
+      rows.push([{value: "Reversion Ladder"}, {value: lzText, textColor: lzZone > 0 ? ladderUpperColor : (lzZone < 0 ? ladderLowerColor : ladderBalanceColor), align: "right", tooltip: "Zone of the close: rung 1..3 of the top or bottom zone, or its side of the balance line."}]);
+    }
+    if (stepperOn) {
+      rows.push([{value: "Trend Stepper"}, {value: stIsBull ? "Up leg" : "Down leg", textColor: stIsBull ? stepperBullColor : stepperBearColor, align: "right", tooltip: "Direction of the stepper's current leg."}]);
+    }
+    if (keelOn) {
+      rows.push([{value: "Trend Keel"}, {value: klDir == 0 ? "warming up" : (klIsBull ? "Rising" : "Falling"), textColor: klIsBull ? keelBullColor : keelBearColor, align: "right", tooltip: "Sign of the keel's last step."}]);
+    }
+    if (cloudOn) {
+      rows.push([{value: "Trail Cloud"}, {value: ncState == 0 ? "warming up" : (ncIsBull ? "Rising" : "Falling"), textColor: ncIsBull ? cloudBullColor : cloudBearColor, align: "right", tooltip: "Rising while the lead line is above the lag line."}]);
+    }
+    if (needTpsl) {
+      var tpText = tpDir == 0 ? "waiting" : ((tpDir == 1 ? "Long, next " : "Short, next ") + (tpProgressed == 1 ? "TP2" : "TP1") + " / " + (slProgressed == 1 ? "SL2" : "SL1"));
+      rows.push([{value: "TP/SL"}, {value: tpText, textColor: tpDir == 1 ? tpColor : (tpDir == -1 ? slColor : anchorColor), align: "right", tooltip: "Direction of the active ladder and its next uncrossed levels."}]);
+    }
+  }
+  plotTable(data=rows, position=pos, headerRow=true, fontSize=fontSize,
+    backgroundColor=dashColor, textColor="#c2cad6", borderColor="#2c3440", borderWidth=1);
+}

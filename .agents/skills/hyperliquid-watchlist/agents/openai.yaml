@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hyperliquid Watchlist"
+  short_description: "Find active crypto perps for a trading session"
+  default_prompt: "Use $hyperliquid-watchlist to prepare an activity watchlist for my next trading session."

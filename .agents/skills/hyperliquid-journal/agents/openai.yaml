@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hyperliquid Journal"
+  short_description: "Update account, fills and evidence-based lessons"
+  default_prompt: "Use $hyperliquid-journal to update today's trading journal and account state."

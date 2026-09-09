@@ -1,0 +1,10 @@
+{
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "observed_at": null,
+  "coverage": {"status": "unknown", "start": null, "end": null, "timezone": null, "notes": []},
+  "fills": [],
+  "funding": [],
+  "cashflows": [],
+  "account": null
+}

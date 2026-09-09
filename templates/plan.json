@@ -1,0 +1,35 @@
+{
+  "account_label": "main",
+  "coin": null,
+  "side": null,
+  "entry": null,
+  "entry_order_type": null,
+  "stop": null,
+  "stop_order_type": null,
+  "take_profits": [],
+  "leverage": null,
+  "margin_mode": "isolated",
+  "risk_fraction": null,
+  "holding_minutes": null,
+  "valid_until": null,
+  "invalidation": null,
+  "visible_depth_participation": 0.25,
+  "costs": {
+    "entry_fee_bps": null,
+    "exit_fee_bps": null,
+    "stop_slippage_bps": null,
+    "stress_slippage_bps": null,
+    "funding_budget_bps": null,
+    "source": null
+  },
+  "chart_evidence": {
+    "source": "https://openmarket.xyz/chart/FjCa6FS3",
+    "coin": null,
+    "observed_at": null,
+    "venue_verified": false,
+    "closed_bars_verified": false,
+    "price_action": null,
+    "trend_signals": null,
+    "oscillator": null
+  }
+}

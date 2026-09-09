@@ -1,0 +1,915 @@
+//@version=3
+// Oscillator Toolkit
+//
+// One indicator, one pane, every oscillator feature a trader stacks: a momentum wave with its
+// signal line and turn markers, wave divergences, a range-weighted money flow with adaptive
+// ceilings / floors and surge shading, reversal flags (minor / major), and confluence strips
+// with a confluence score, plus two order-flow lanes the candle-only tools cannot have: a taker
+// money flow read from the venue's sided trade tape and CVD divergences. A user adds this one
+// script and gets everything; each feature is a settings group with its own display toggle, and
+// every feature evaluates on bar close.
+//
+// Everything is built on TWO primitives, computed once per bar and shared:
+//
+//   Momentum wave (+ signal). m = floor(sqrt(L)); mom = close - close[m];
+//   wave = 50 + 50 * ema(ema(mom, L), L) / ema(ema(|mom|, L), L)  (L = wave smoothing, 7).
+//   Signal = sma(wave, signalLength) or a trailing stop ON the wave (width = signalLength x
+//   rma20(|change(wave)|), alpha fixed 1/20). Consumers: wave turns (wave/signal crosses graded
+//   at 20/80), divergences (strict 1/1 fractal pivots on the wave), reversal grading (major iff
+//   the wave sits beyond 80/20 on the firing bar), confluence (wave > 50, wave vs signal, 56/44
+//   strength gates).
+//
+//   Range money flow (+ ceiling / floor, surge). g = sma(high - low, len); core = 100 x sum(up ?
+//   g : 0, len) / sum(g, len) with ties counted as down; MF = ema(core, smooth). The ceiling and
+//   floor are attack / release chasers (0.2 / 0.005) clamped at the 50 midline; a surge = MF
+//   beyond its ceiling / floor, plotted as max(50, MF - 10) / min(50, MF + 10). Consumers: surge
+//   episodes and surge-start alerts, confluence (mf > 50, surge element).
+//
+//   The reversal detector is pure price (proven independent of every oscillator knob): x =
+//   (close - ref) / trueRange with ref = close of the last reversal either side; Down fires when
+//   x > 0.5 x factor, Up when x < -0.5 x factor (strict, 1e-9 tie tolerance); on fire ref := close.
+//   Grade "+" (major) iff the wave is beyond its extreme zone on the firing bar AND the previous
+//   reversal was on the same side.
+//
+//   Order flow (additive lanes; buy_sell_volume in USD, fetched only while a lane is on). Taker
+//   money flow = 50 + 50 x wma(buy - sell, n) / wma(buy + sell, n) on the pane's 0..100 frame
+//   (50 = balanced aggression), its bands = nearest-rank 80th / 20th percentile of itself over the
+//   last 100 bars (NaN while the window holds a NaN). CVD = session-anchored cumulative (buy -
+//   sell); CVD divergences use the wave divergences' pivot rule on the CVD (strict 1/1 fractal
+//   confirmed one bar later, lowest / highest CLOSE over the 6 bars ending at the pivot, the
+//   previous same-side pivot as the comparison point, both pivots inside one session), grade "+" when the
+//   persist-summed higher-frame CVD slope (delta summed over the last completed 4-bar bucket plus
+//   the developing one, calendar-aligned) agrees. On venues without sided trades (US equities)
+//   the source is empty: both lanes stay absent and the pane is the classic build.
+//
+// Original implementation. Every feature is covered by a deterministic test harness on two
+// engine versions.
+//
+// Pane layout (one 0..100 frame with outer lanes). Four hues: teal / slate for the wave by its
+// side of the signal, sky / rose for every other bullish / bearish element (money flow, surges,
+// divergences, reversal flags, confluence), slate for the frame.
+//   111 / -11      reversal lanes: small ring = minor, larger glowing dot = major
+//   101..106       bullish confluence strip: a translucent sky strip whose height grades the state
+//                  (none = nothing, weak = 3 units, strong = 5 units; a dotted inner edge and a
+//                  solid outer edge that brightens with the state)
+//   -1..-6         bearish confluence strip (rose)
+//   0..100         wave 2px (teal / slate) with a dotted signal line and a translucent band
+//                  between them; money flow 1px (sky / rose by its side of 50) with one dotted
+//                  ceiling / floor visible per bar and surge shading between the surge front and
+//                  the midline (its height IS the depth); dotted 20 / 50 / 80 guides; wave turns
+//                  as small dots ON the wave (larger glowing dots from the oversold / overbought
+//                  zones); divergence connectors (dashed 1px) between the two wave pivots and a
+//                  small arrow in the pane-edge lane on the confirm bar; the confluence score
+//                  (off by default) as a line with a translucent fill toward 50, optionally a
+//                  score dial (110 one-unit gradient boxes + pointer right of the last bar)
+//   price chart    divergence connectors (dashed 1px, pane "onchart") between the two extreme
+//                  closes the detection compared; optional arrows under / over the confirm bar
+//   order flow     taker money flow 1px (violet) with its two bands (violet, 40%) inside the frame;
+//                  CVD divergence diamonds in their own lanes (-8.5 bullish / 108.5 bearish; full
+//                  tone = "+" grade, 60% tone = base grade); optionally (off: validator visits) a
+//                  connector on the price chart between the two extreme closes compared (solid
+//                  1px "+", dashed base grade)
+//
+// Renderer facts the visuals rest on (titan-charts-next 0.0.4-alpha.698, both engines):
+//   - fillBetween.opacity is the fill's alpha on a 0..1 scale (the engine clamps it to 0..1 and
+//     the renderer replaces the color's own alpha with it); percent-scale values render fully
+//     opaque. The renderer draws one polygon per run of bars sharing the fill's color AND opacity
+//     and drops single-bar runs, so a fill whose color or alpha changes per bar tears at every
+//     change: every fill here keeps a constant alpha and changes color only where its height is
+//     zero (episode / side boundaries), and the confluence strips grade the state by height, not
+//     by alpha.
+//   - a fill only renders between two PLOTTED single-value series (refs resolve by plotKey), and
+//     a plot whose colors are all fully transparent is dropped by the app as a helper, so every
+//     fill base (midline, strip edges) is a real faint line.
+//   - shape="circle" is plotType "point" (fill=false = ring); the grade of a marker rides its
+//     width; shape="star" has no renderer (maps to diamond).
+//
+// Frontend budget (measured on engines 3.0.61 / 3.0.83 / 3.0.84, harness/budget.mjs): see
+// README.md "Budget". Series 26 at defaults (24 classic + the taker flow 3-column plot + the CVD
+// divergence markers, both absent without sided data), 30 with every toggle on (cap 32; 30 x
+// 5,000 bars = the 150k row preflight exactly); rows = series x bars (every series output carries
+// one row per bar, markers and fills included); drawings = divergence connectors (wave: FIFO 120
+// per side per pane; CVD chart connectors, off by default: FIFO 60 per side and never past 490
+// lines alive in total, engine cap 500 per kind) plus 111 dial boxes on the last bar when the
+// dial is on. Validator visits: each alive line costs 2, each output ~9; the order-flow lanes add
+// 28 at defaults (361 vs 333, +8%). Alerts are unconditional: every classic condition is recorded
+// whether or not its feature is displayed, and the four order-flow conditions compute while either
+// order-flow lane is on (the sided data is only fetched then); the app drops the alert ledger
+// before its validator, so alert rows cost no validation visits.
+define(title="Oscillator Toolkit", position="offchart", axis=true);
+
+timeseries d = ohlcv(symbol=currentSymbol, exchange=currentExchange);
+
+// ============================================================================
+// SETTINGS (six groups; every feature has its display toggle)
+// ============================================================================
+
+// ------------------------------------------------------- Momentum Wave -----
+var showWave = input(name="showMomentumWave", type="boolean", defaultValue=true,
+  label="Draw the wave", group="Momentum Wave",
+  tooltip="Draw the momentum wave, its signal line and the band between them. Alerts still compute when hidden.");
+var hwLen = input(name="hwLength", type="int", defaultValue=7, label="Wave smoothing",
+  min=2, max=500, step=1, group="Momentum Wave",
+  tooltip="Core smoothing length. Also sets the momentum lookback (square root of this length). Higher = slower, longer-term wave.");
+var sigMode = input(name="signalType", type="select", defaultValue="SMA", options=["SMA", "TS"],
+  label="Signal line mode", group="Momentum Wave",
+  tooltip="SMA: simple moving average of the wave. TS: trailing stop that ratchets along the wave (less sensitive to noise).");
+var sigLen = input(name="signalLength", type="int", defaultValue=3, label="Signal line span",
+  min=2, max=500, step=1, group="Momentum Wave",
+  tooltip="SMA window in SMA mode; trailing-stop width multiple in TS mode. Raise it together with a high wave smoothing.");
+var showTurning = input(name="showTurningPoints", type="boolean", defaultValue=true,
+  label="Mark wave turns", group="Momentum Wave",
+  tooltip="Mark every wave / signal cross with a small dot on the wave; a larger glowing dot when the cross starts from the oversold (< 20) or overbought (> 80) zone.");
+var hwBullCol = input(name="hwBullColor", type="color", defaultValue="#10b5a5",
+  label="Rising wave color", group="Momentum Wave",
+  tooltip="Wave above its signal line, bullish wave turns.");
+var hwBearCol = input(name="hwBearColor", type="color", defaultValue="#7e8ca9",
+  label="Falling wave color", group="Momentum Wave",
+  tooltip="Wave below its signal line, bearish wave turns.");
+var hwTrans = input(name="hwFillTransparency", type="slider", defaultValue=80,
+  label="Wave band fade", constraints={min: 0, max: 100, step: 5}, group="Momentum Wave",
+  tooltip="Transparency of the band between the wave and its signal line (0 = solid, 100 = invisible).");
+
+// ----------------------------------------------------- Flow Oscillator -----
+var showMoneyFlow = input(name="showMoneyFlow", type="boolean", defaultValue=true,
+  label="Draw the flow line", group="Flow Oscillator",
+  tooltip="Draw the range money flow, its adaptive ceiling / floor and the surge shading. Alerts still compute when hidden. The ceiling and floor carry long memory (release half-life ~139 bars): on a fresh load they settle over the first ~300 bars.");
+var mfLen = input(name="mfLength", type="int", defaultValue=35, label="Flow window",
+  min=5, max=500, step=1, group="Flow Oscillator",
+  tooltip="Window of the directional flow sums and of the bar-range weight average. Higher = longer-term flow.");
+var mfSmooth = input(name="smooth", type="int", defaultValue=6, label="Flow smoothing",
+  min=2, max=500, step=1, group="Flow Oscillator",
+  tooltip="EMA applied to the raw flow ratio. Higher = smoother flow line.");
+var showIgnition = input(name="showIgnition", type="boolean", defaultValue=false,
+  label="Mark surge starts", group="Flow Oscillator",
+  tooltip="Mark the first bar of every surge episode with a dot on the flow line. Off by default; the Bullish / Bearish Flow Surge alerts fire on the same bars either way.");
+var mfBullCol = input(name="mfBullColor", type="color", defaultValue="#38bdf8",
+  label="Flow up color", group="Flow Oscillator",
+  tooltip="Flow line above 50, the ceiling, bullish surges.");
+var mfBearCol = input(name="mfBearColor", type="color", defaultValue="#fb7185",
+  label="Flow down color", group="Flow Oscillator",
+  tooltip="Flow line below 50, the floor, bearish surges.");
+var surgeTrans = input(name="surgeTransparency", type="slider", defaultValue=60,
+  label="Surge shading fade", constraints={min: 0, max: 100, step: 5}, group="Flow Oscillator",
+  tooltip="Transparency of the surge shading between the surge front and the midline (the shading's height is the surge depth).");
+
+// ---------------------------------------------------------- Order Flow -----
+// Both lanes read buy_sell_volume(currency="USD"): the venue's per-bar taker buy / sell volume in
+// dollars (Binance, Bybit, OKX, CME and every other venue with sided trades). US equities carry
+// side-agnostic volume only: the source is empty there and both lanes stay absent.
+var showTaker = input(name="showTakerFlow", type="boolean", defaultValue=true,
+  label="Draw taker money flow", group="Order Flow",
+  tooltip="A second money flow read from the trade tape instead of the candle: 50 + 50 x wma(buy - sell) / wma(buy + sell) over the taker window, in USD taker volume (positive above 50 = buyers hitting the ask). Its bands are the 80th / 20th percentile of the last 100 bars of itself. Reads the venue's sided trades: crypto spot and perps, CME futures. Stays hidden on US equities (no sided data). Its surge alerts keep computing while either order-flow lane is on.");
+var takerLen = input(name="takerFlowLength", type="int", defaultValue=14, label="Taker window",
+  min=2, max=500, step=1, group="Order Flow",
+  tooltip="Linear-weighted window of the taker money flow (both the delta and the total). Higher = smoother, slower.");
+var takerCol = input(name="takerFlowColor", type="color", defaultValue="#a78bfa",
+  label="Taker flow color", group="Order Flow",
+  tooltip="The taker money flow line; its bands use the same color at 40%.");
+var showCvdDiv = input(name="showCvdDivergences", type="boolean", defaultValue=true,
+  label="Scan CVD divergences", group="Order Flow",
+  tooltip="Cumulative volume delta (taker buys minus sells, USD) anchored per session, scanned with the wave divergences' pivot rule: a bullish divergence when price sets a lower low while the CVD sets a higher low (bearish mirrored), both pivots inside one session. Diamonds in the pane lanes (full tone when the higher-frame CVD slope agrees: the plus grade); the price-chart connector is a separate switch below. Reads the venue's sided trades; hidden on US equities. Its divergence alerts keep computing while either order-flow lane is on.");
+var showCvdLines = input(name="showCvdChartLines", type="boolean", defaultValue=false,
+  label="Connect CVD pivots on the price chart", group="Order Flow",
+  tooltip="Also draw each CVD divergence on the price chart as a connector between the two closes compared (solid = plus grade, dashed = base grade). Off by default: every connector kept on the chart costs the app's output validator two visits (up to 120 kept).");
+var cvdAnchor = input(name="cvdAnchor", type="select", defaultValue="UTC day", options=["UTC day", "UTC week", "Continuous"],
+  label="CVD anchor", group="Order Flow",
+  tooltip="Where the cumulative delta restarts at zero. UTC day suits intraday charts up to 1h, UTC week suits 2h..12h, Continuous never resets (use it on daily charts and above). Pivots are only compared inside one anchor period.");
+var cvdBullCol = input(name="cvdBullColor", type="color", defaultValue="#a78bfa",
+  label="Bullish CVD color", group="Order Flow",
+  tooltip="Bullish CVD divergence diamonds and their chart connectors.");
+var cvdBearCol = input(name="cvdBearColor", type="color", defaultValue="#fbbf24",
+  label="Bearish CVD color", group="Order Flow",
+  tooltip="Bearish CVD divergence diamonds and their chart connectors.");
+
+// ----------------------------------------------------- Divergence Scan -----
+var sens = input(name="sensitivity", type="float", defaultValue=20, label="Pivot zone width %",
+  min=0, max=100, step=1, group="Divergence Scan",
+  tooltip="Width of the divergence-eligible pivot zones on the 0..100 wave scale: bullish pivots must sit below this value, bearish pivots above 100 minus it. Lower = fewer, longer-term divergences.");
+var showDivs = input(name="showDivergences", type="boolean", defaultValue=true,
+  label="Scan wave divergences", group="Divergence Scan",
+  tooltip="Draw the dashed pivot-to-pivot connector on the pane and a small arrow in the pane-edge lane on the confirm bar. The confluence score counts its divergence element only while this is on; the Bullish / Bearish Wave Divergence alerts fire regardless.");
+var showOnChart = input(name="showDivergencesOnChart", type="boolean", defaultValue=true,
+  label="Connect the pivots on the price chart", group="Divergence Scan",
+  tooltip="Also draw each confirmed divergence on the price chart as a dashed connector between the two closes the detection compared (the extreme close inside each pivot's 6-bar window). The detection bar is identical.");
+var showChartMarks = input(name="showDivergenceChartMarkers", type="boolean", defaultValue=false,
+  label="Arrow the confirm bar on the price chart", group="Divergence Scan",
+  tooltip="Additionally mark the confirm bar on the price chart with a compact arrow under / over it. Off by default.");
+var divBullCol = input(name="divBullColor", type="color", defaultValue="#38bdf8",
+  label="Bullish divergence color", group="Divergence Scan");
+var divBearCol = input(name="divBearColor", type="color", defaultValue="#fb7185",
+  label="Bearish divergence color", group="Divergence Scan");
+
+// ------------------------------------------------------ Reversal Flags -----
+var revFactor = input(name="reversalFactor", type="int", defaultValue=5, label="Travel factor",
+  min=1, max=10, step=1, group="Reversal Flags",
+  tooltip="How far price must travel from the last reversal, in half true-ranges of the current bar, before the next reversal is flagged. Higher = less frequent, longer-term flags.");
+var showReversals = input(name="showReversals", type="boolean", defaultValue=true,
+  label="Flag reversals", group="Reversal Flags",
+  tooltip="Minor flags (small rings: top / bottom of an impulse, a retracement may follow) and major flags (larger glowing dots: later in a trend, with the wave beyond 80 / 20) in the outer lanes. Detection is a pure price rule measured in half true-ranges; the wave only grades a flag minor / major.");
+var revBullCol = input(name="revBullColor", type="color", defaultValue="#38bdf8",
+  label="Bullish flag color", group="Reversal Flags");
+var revBearCol = input(name="revBearColor", type="color", defaultValue="#fb7185",
+  label="Bearish flag color", group="Reversal Flags");
+
+// ---------------------------------------------------- Confluence Zones -----
+var showUpper = input(name="upperConfluence", type="boolean", defaultValue=true,
+  label="Bullish confluence strip", group="Confluence Zones",
+  tooltip="Strip above the frame: 5 units tall with a bright edge when both the wave and the flow line are bullish with the wave beyond 56 (strong), 3 units when only one is bullish or the wave sits between 50 and 56 (weak), nothing otherwise.");
+var showLower = input(name="lowerConfluence", type="boolean", defaultValue=true,
+  label="Bearish confluence strip", group="Confluence Zones",
+  tooltip="Strip below the frame: 5 units when both oscillators are bearish with the wave under 44 (strong), 3 when only one is bearish or the wave sits between 44 and 50 (weak), nothing otherwise.");
+var showMeter = input(name="showMeter", type="boolean", defaultValue=false,
+  label="Draw the confluence score", group="Confluence Zones",
+  tooltip="Draw the confluence score line (0..100) with a translucent fill toward 50: five signed elements (wave vs signal, wave vs 50, flow vs 50, surge, divergence) on a 100/14 lattice. The value is always computed and published. The divergence element counts only while Scan wave divergences is on.");
+var meterWidth = input(name="meterWidth", type="int", defaultValue=3, label="Score line width",
+  min=1, max=10, step=1, group="Confluence Zones");
+var showGauge = input(name="showGauge", type="boolean", defaultValue=false,
+  label="Score dial on the last bar", group="Confluence Zones",
+  tooltip="A dial right of the last bar: 110 one-unit boxes on a bearish-to-bullish gradient with a pointer at the current score. Redrawn on the last bar only. Off by default.");
+var confBullCol = input(name="confBullColor", type="color", defaultValue="#38bdf8",
+  label="Bullish zone color", group="Confluence Zones");
+var confBearCol = input(name="confBearColor", type="color", defaultValue="#fb7185",
+  label="Bearish zone color", group="Confluence Zones");
+
+// ============================================================================
+// SHARED MODEL (computed once per bar; every feature reads from here)
+// ============================================================================
+
+// ── Wave core: double-EMA normalized momentum, mapped to 0..100 ───────────────
+var m = floor(sqrt(hwLen));
+timeseries mo = d.close - d.close[m];
+var aL = 2.0 / (hwLen + 1);
+
+persist e1n = na;
+persist e2n = na;
+persist e1d = na;
+persist e2d = na;
+if (!isna(mo)) {
+  var am = abs(mo);
+  e1n = isna(e1n) ? mo : aL * mo + (1 - aL) * e1n;
+  e1d = isna(e1d) ? am : aL * am + (1 - aL) * e1d;
+  e2n = isna(e2n) ? e1n : aL * e1n + (1 - aL) * e2n;
+  e2d = isna(e2d) ? e1d : aL * e1d + (1 - aL) * e2d;
+}
+var hwVal = isna(e2d) || e2d == 0 ? na : 50 + 50 * e2n / e2d;
+
+// ── Signal companion: SMA of the wave, or a trailing stop ON the wave ──────────
+persist smaWin = [];
+var sigSmaVal = na;
+if (isna(hwVal)) {
+  while (smaWin.length > 0) { smaWin.pop(); }
+} else {
+  smaWin.push(hwVal);
+  if (smaWin.length > sigLen) { smaWin.shift(); }
+  if (smaWin.length == sigLen) {
+    var acc = 0.0;
+    for (var jS = 0; jS < smaWin.length; jS = jS + 1) { acc = acc + smaWin[jS]; }
+    sigSmaVal = acc / sigLen;
+  }
+}
+
+persist tsAvgMove = na;
+persist tsStop = na;
+persist tsDir = 0;
+persist tsPrevWave = na;
+if (!isna(hwVal)) {
+  if (!isna(tsPrevWave)) {
+    var dv = abs(hwVal - tsPrevWave);
+    tsAvgMove = isna(tsAvgMove) ? dv : tsAvgMove + 0.05 * (dv - tsAvgMove);
+  }
+  if (!isna(tsAvgMove)) {
+    var w = sigLen * tsAvgMove;
+    if (tsDir == 0) {
+      tsDir = 1;
+      tsStop = hwVal - w;
+    } else if (tsDir == 1) {
+      if (hwVal < tsStop) {
+        tsDir = -1;
+        tsStop = hwVal + w;
+      } else {
+        tsStop = math.max(tsStop, hwVal - w);
+      }
+    } else {
+      if (hwVal > tsStop) {
+        tsDir = 1;
+        tsStop = hwVal - w;
+      } else {
+        tsStop = math.min(tsStop, hwVal + w);
+      }
+    }
+  }
+  tsPrevWave = hwVal;
+}
+
+var sigVal = sigMode == "SMA" ? sigSmaVal : tsStop;
+
+timeseries wave = hwVal;
+timeseries sig = sigVal;
+
+// ── Wave turns: one marker per wave/signal cross, graded at the extremes ───────
+persist pWave = na;
+persist pSig = na;
+var xUp = !isna(pWave) && !isna(pSig) && !isna(hwVal) && !isna(sigVal) && hwVal > sigVal && pWave <= pSig;
+var xDn = !isna(pWave) && !isna(pSig) && !isna(hwVal) && !isna(sigVal) && hwVal < sigVal && pWave >= pSig;
+var osUp = xUp && hwVal < 20;
+var regUp = xUp && hwVal >= 20;
+var obDn = xDn && hwVal > 80;
+var regDn = xDn && hwVal <= 80;
+pWave = hwVal;
+pSig = sigVal;
+
+// ── Range money flow: range-weighted directional flow, EMA-smoothed ───────────
+persist rngWin = [];
+persist rngSum = 0;
+var rng = d.high - d.low;
+rngWin.push(rng);
+rngSum = rngSum + rng;
+if (rngWin.length > mfLen) {
+  rngSum = rngSum - rngWin.shift();
+}
+var g = rngWin.length == mfLen ? rngSum / mfLen : na;
+
+persist gWin = [];
+persist upWin = [];
+if (!isna(g)) {
+  var up = !isna(d.close[1]) && d.close > d.close[1] ? 1 : 0;
+  gWin.push(g);
+  upWin.push(up);
+  if (gWin.length > mfLen) {
+    gWin.shift();
+    upWin.shift();
+  }
+}
+var core = na;
+if (gWin.length == mfLen) {
+  var sumU = 0.0;
+  var sumT = 0.0;
+  for (var kM = mfLen - 1; kM >= 0; kM = kM - 1) {
+    sumT = sumT + gWin[kM];
+    if (upWin[kM] == 1) {
+      sumU = sumU + gWin[kM];
+    }
+  }
+  if (sumT > 0) {
+    core = 100 * sumU / sumT;
+  }
+}
+
+persist emaP = na;
+var aS = 2.0 / (mfSmooth + 1);
+if (!isna(core)) {
+  emaP = isna(emaP) ? core : aS * core + (1 - aS) * emaP;
+}
+var mfVal = isna(core) ? na : emaP;
+
+// ── Ceiling / floor: asymmetric attack/release chasers clamped at the midline ──
+persist ut = na;
+persist lt = na;
+if (!isna(mfVal)) {
+  if (isna(ut)) {
+    ut = math.max(mfVal, 50);
+    lt = math.min(mfVal, 50);
+  } else {
+    ut = math.max(50, ut + (mfVal > ut ? 0.2 : 0.005) * (mfVal - ut));
+    lt = math.min(50, lt + (mfVal < lt ? 0.2 : 0.005) * (mfVal - lt));
+  }
+}
+var utVal = isna(mfVal) ? na : ut;
+var ltVal = isna(mfVal) ? na : lt;
+
+// ── Surge: burst wave from the midline while the flow is beyond its ceiling / floor ─
+var bullActive = !isna(mfVal) && !isna(utVal) && mfVal > utVal;
+var bearActive = !isna(mfVal) && !isna(ltVal) && mfVal < ltVal;
+var bofVal = isna(mfVal) ? na : (bullActive ? math.max(50, mfVal - 10) : 50);
+var befVal = isna(mfVal) ? na : (bearActive ? math.min(50, mfVal + 10) : 50);
+
+persist prevBullActive = false;
+persist prevBearActive = false;
+var newBull = bullActive && !prevBullActive;
+var newBear = bearActive && !prevBearActive;
+prevBullActive = bullActive;
+prevBearActive = bearActive;
+
+persist prevMf = na;
+var mfCrossUp = !isna(mfVal) && !isna(prevMf) && mfVal > 50 && prevMf <= 50;
+var mfCrossDn = !isna(mfVal) && !isna(prevMf) && mfVal < 50 && prevMf >= 50;
+prevMf = mfVal;
+
+// ── Divergences: strict 1/1 fractal pivots on the wave, zone-gated, 6-bar close memory ─
+var w2 = wave[2];
+var w1 = wave[1];
+var pivReady = !isna(w2) && !isna(w1) && !isna(hwVal);
+var pivBull = pivReady && w2 > w1 && w1 < hwVal && w1 < sens;
+var pivBear = pivReady && w2 < w1 && w1 > hwVal && w1 > 100 - sens;
+
+persist bullRefOsc = na;
+persist bullRefPrice = na;
+persist bullRefPriceT = na;
+persist bullRefTime = na;
+persist bearRefOsc = na;
+persist bearRefPrice = na;
+persist bearRefPriceT = na;
+persist bearRefTime = na;
+persist bullLines = [];
+persist bearLines = [];
+persist bullChartLines = [];
+persist bearChartLines = [];
+
+var divBull = false;
+var divBear = false;
+var pivTime = d.time[1];
+
+if (pivBull) {
+  // lowest close over the 6 bars ending at the pivot bar (offsets 1..6 from here) + its bar
+  var pLo = na;
+  var pLoT = na;
+  for (var jB = 1; jB <= 6; jB = jB + 1) {
+    var c = d.close[jB];
+    if (!isna(c) && (isna(pLo) || c < pLo)) { pLo = c; pLoT = d.time[jB]; }
+  }
+  if (!isna(bullRefOsc) && !isna(pLo) && pLo < bullRefPrice && w1 > bullRefOsc) {
+    divBull = true;
+    if (showDivs) {
+      bullLines.push(line.new(bullRefTime, bullRefOsc, pivTime, w1, {color: divBullCol, width: 1, style: "dashed"}));
+      if (bullLines.length > 120) { bullLines[0].delete(); bullLines.shift(); }
+    }
+    if (showOnChart) {
+      // chart geometry: the two extreme closes the detection compared
+      bullChartLines.push(line.new(bullRefPriceT, bullRefPrice, pLoT, pLo, {color: divBullCol, width: 1, style: "dashed", pane: "onchart"}));
+      if (bullChartLines.length > 120) { bullChartLines[0].delete(); bullChartLines.shift(); }
+    }
+  }
+  bullRefOsc = w1;
+  bullRefPrice = pLo;
+  bullRefPriceT = pLoT;
+  bullRefTime = pivTime;
+}
+if (pivBear) {
+  // highest close over the 6 bars ending at the pivot bar + its bar
+  var pHi = na;
+  var pHiT = na;
+  for (var jR = 1; jR <= 6; jR = jR + 1) {
+    var c2 = d.close[jR];
+    if (!isna(c2) && (isna(pHi) || c2 > pHi)) { pHi = c2; pHiT = d.time[jR]; }
+  }
+  if (!isna(bearRefOsc) && !isna(pHi) && pHi > bearRefPrice && w1 < bearRefOsc) {
+    divBear = true;
+    if (showDivs) {
+      bearLines.push(line.new(bearRefTime, bearRefOsc, pivTime, w1, {color: divBearCol, width: 1, style: "dashed"}));
+      if (bearLines.length > 120) { bearLines[0].delete(); bearLines.shift(); }
+    }
+    if (showOnChart) {
+      bearChartLines.push(line.new(bearRefPriceT, bearRefPrice, pHiT, pHi, {color: divBearCol, width: 1, style: "dashed", pane: "onchart"}));
+      if (bearChartLines.length > 120) { bearChartLines[0].delete(); bearChartLines.shift(); }
+    }
+  }
+  bearRefOsc = w1;
+  bearRefPrice = pHi;
+  bearRefPriceT = pHiT;
+  bearRefTime = pivTime;
+}
+
+// ── Reversal detector: travel since the last reversal, in half true-ranges of this bar ─
+// Pure price. ref is the close of the last reversal (either side); the first bar seeds it.
+// Exact ties (x == threshold) stay quiet: the 1e-9 tolerance absorbs float-division noise.
+persist revRef = na;
+persist revPrevSide = 0;
+var revThr = 0.5 * revFactor;
+var revEps = 0.000000001;
+var prevClose = d.close[1];
+var barRange = isna(prevClose) ? d.high - d.low : math.max(d.high - d.low, math.max(abs(d.high - prevClose), abs(d.low - prevClose)));
+var revX = na;
+var revDnMinus = false;
+var revDnPlus = false;
+var revUpMinus = false;
+var revUpPlus = false;
+if (!isna(revRef) && barRange > 0) {
+  revX = (d.close - revRef) / barRange;
+  if (revX > revThr + revEps) {
+    if (!isna(hwVal) && hwVal > 80 && revPrevSide == 1) { revDnPlus = true; } else { revDnMinus = true; }
+    revRef = d.close;
+    revPrevSide = 1;
+  } else if (revX < -revThr - revEps) {
+    if (!isna(hwVal) && hwVal < 20 && revPrevSide == -1) { revUpPlus = true; } else { revUpMinus = true; }
+    revRef = d.close;
+    revPrevSide = -1;
+  }
+}
+if (isna(revRef)) { revRef = d.close; }
+
+// ── Confluence zones: agreement state {0,1,2} per side ─────────────────────────
+var upperState = na;
+var lowerState = na;
+if (!isna(hwVal) && !isna(mfVal)) {
+  var hwUp = hwVal > 50;
+  var mfUp = mfVal > 50;
+  upperState = hwUp && mfUp ? (hwVal > 56 ? 2 : 1) : (hwUp || mfUp ? 1 : 0);
+  lowerState = !hwUp && !mfUp ? (hwVal < 44 ? 2 : 1) : (!hwUp || !mfUp ? 1 : 0);
+}
+
+// ── Confluence score: five signed elements on a 100/14 lattice ────────────────
+// The divergence element counts only while divergences are shown (with the divergence scan
+// off the score drops that element; checked on 7/600 bars).
+var meterVal = na;
+if (!isna(hwVal) && !isna(sigVal) && !isna(mfVal) && !isna(bofVal) && !isna(befVal)) {
+  var e1 = hwVal > sigVal ? 1 : (hwVal < sigVal ? -1 : 0);
+  var e2 = hwVal > 50 ? 1 : (hwVal < 50 ? -1 : 0);
+  var e3 = mfVal > 50 ? 1 : (mfVal < 50 ? -1 : 0);
+  var e4 = (bofVal > 50 ? 1 : 0) - (befVal < 50 ? 1 : 0);
+  var e5 = showDivs ? (divBull ? 1 : 0) - (divBear ? 1 : 0) : 0;
+  meterVal = 50 + (e1 + e2 + e3 + e4 + e5) * 100 / 14;
+}
+
+// ── Confluence transitions (alerts; computed before the prev updates) ──────────
+persist prevUpperState = na;
+persist prevLowerState = na;
+persist prevMeter = na;
+var freshStrongUp = !isna(upperState) && upperState == 2 && !isna(prevUpperState) && prevUpperState < 2;
+var freshWeakUp = !isna(upperState) && upperState >= 1 && !isna(prevUpperState) && prevUpperState == 0;
+var freshStrongDn = !isna(lowerState) && lowerState == 2 && !isna(prevLowerState) && prevLowerState < 2;
+var freshWeakDn = !isna(lowerState) && lowerState >= 1 && !isna(prevLowerState) && prevLowerState == 0;
+var meterCrossUp = !isna(meterVal) && !isna(prevMeter) && meterVal > 50 && prevMeter <= 50;
+var meterCrossDn = !isna(meterVal) && !isna(prevMeter) && meterVal < 50 && prevMeter >= 50;
+if (!isna(upperState)) { prevUpperState = upperState; }
+if (!isna(lowerState)) { prevLowerState = lowerState; }
+if (!isna(meterVal)) { prevMeter = meterVal; }
+
+// ── Order flow source (fetched only while a lane is on) ────────────────────────
+var flowOn = showTaker || showCvdDiv;
+var buyUsd = na;
+var sellUsd = na;
+if (flowOn) {
+  timeseries bsv = buy_sell_volume(symbol=currentSymbol, exchange=currentExchange, currency="USD");
+  buyUsd = isna(bsv.buy[0]) ? na : bsv.buy[0];
+  sellUsd = isna(bsv.sell[0]) ? na : bsv.sell[0];
+}
+var takerTotal = isna(buyUsd) || isna(sellUsd) ? na : buyUsd + sellUsd;
+var takerDelta = isna(takerTotal) ? na : buyUsd - sellUsd;
+// the lanes exist only once the venue has delivered a traded sided bar (never on an empty source)
+persist sidedSeen = false;
+if (!isna(takerTotal) && takerTotal > 0) { sidedSeen = true; }
+
+// ── Taker money flow: linear-weighted dollar aggression on the 0..100 frame ─────
+// (computed while either lane is on: the toggle hides the plot, the surge alerts keep computing)
+persist prevTakerAbove = false;
+persist prevTakerBelow = false;
+var takerVal = na;
+var takerHiVal = na;
+var takerLoVal = na;
+var newTakerUp = false;
+var newTakerDn = false;
+if (flowOn) {
+  timeseries takerDeltaTs = takerDelta;
+  timeseries takerTotalTs = takerTotal;
+  var wDelta = wma(source=takerDeltaTs, period=takerLen);
+  var wTotal = wma(source=takerTotalTs, period=takerLen);
+  takerVal = isna(wDelta) || isna(wTotal) || wTotal <= 0 ? na : 50 + 50 * wDelta / wTotal;
+  timeseries takerFlowSrc = takerVal;
+  // nearest-rank percentile bands of the flow itself (NaN while the 100-bar window holds a NaN)
+  takerHiVal = percentile(takerFlowSrc, 100, 80);
+  takerLoVal = percentile(takerFlowSrc, 100, 20);
+  var takerAbove = !isna(takerVal) && !isna(takerHiVal) && takerVal > takerHiVal;
+  var takerBelow = !isna(takerVal) && !isna(takerLoVal) && takerVal < takerLoVal;
+  newTakerUp = takerAbove && !prevTakerAbove;
+  newTakerDn = takerBelow && !prevTakerBelow;
+  prevTakerAbove = takerAbove;
+  prevTakerBelow = takerBelow;
+}
+timeseries takerFlow = takerVal;
+timeseries takerHi = takerHiVal;
+timeseries takerLo = takerLoVal;
+
+// ── CVD: session-anchored cumulative delta + the higher-frame slope (persist-summed) ─
+// (computed while either lane is on: the toggle hides the diamonds, the divergence alerts keep computing)
+persist cvd = 0;
+persist cvdSession = na;
+persist sessionAge = 0;
+persist htfBucket = na;
+persist htfCur = 0;
+persist htfPrev = 0;
+persist cvdBullRef = na;
+persist cvdBullRefPrice = na;
+persist cvdBullRefPriceT = na;
+persist cvdBearRef = na;
+persist cvdBearRefPrice = na;
+persist cvdBearRefPriceT = na;
+persist cvdBullChartLines = [];
+persist cvdBearChartLines = [];
+var cvdDivBull = false;
+var cvdDivBear = false;
+var cvdBullPlus = false;
+var cvdBearPlus = false;
+var cvdValNow = na;
+if (flowOn) {
+  var sessionId = cvdAnchor == "UTC day" ? floor(d.time[0] / 86400000) : (cvdAnchor == "UTC week" ? floor((d.time[0] - 4 * 86400000) / 604800000) : 0);
+  var newSession = isna(cvdSession) || sessionId != cvdSession;
+  if (newSession) { cvd = 0; cvdSession = sessionId; sessionAge = 0; cvdBullRef = na; cvdBearRef = na; } else { sessionAge = sessionAge + 1; }
+  cvd = cvd + (isna(takerDelta) ? 0 : takerDelta);
+  cvdValNow = cvd;
+
+  var bucketId = floor(d.time[0] / (4 * currentInterval));
+  if (isna(htfBucket) || bucketId != htfBucket) { htfPrev = isna(htfBucket) ? 0 : htfCur; htfCur = 0; htfBucket = bucketId; }
+  htfCur = htfCur + (isna(takerDelta) ? 0 : takerDelta);
+  var htfSlope = htfPrev + htfCur;
+  // The plus grade is read on closed bars only: the slope includes the bar's
+  // own delta and the app re-runs the forming bar on every tick, so a
+  // divergence confirmed on the live bar would flip between the base and
+  // plus tones (and its connector between dashed and solid) as the tape
+  // moves. It keeps the base grade until the bar closes (isConfirmed).
+
+  // the wave divergences' pivot rule applied to the CVD: strict 1/1 fractal confirmed one bar later,
+  // lowest / highest CLOSE over the 6 bars ending at the pivot, the previous same-side pivot as
+  // the comparison point (every pivot replaces it), both pivots inside one anchor period
+  timeseries cvdTs = cvdValNow;
+  var c2 = cvdTs[2];
+  var c1 = cvdTs[1];
+  var cvdPivReady = sidedSeen && sessionAge >= 2 && !isna(c2) && !isna(c1);
+  var cvdPivBull = cvdPivReady && c2 > c1 && c1 < cvd;
+  var cvdPivBear = cvdPivReady && c2 < c1 && c1 > cvd;
+  // chart connectors share the engine's 500-per-kind line cap with the wave connectors (4 FIFOs of
+  // 120): FIFO 60 per side here, and never past 490 alive in total (the oldest CVD line goes first)
+  var linesAlive = bullLines.length + bearLines.length + bullChartLines.length + bearChartLines.length + cvdBullChartLines.length + cvdBearChartLines.length;
+  if (cvdPivBull) {
+    var cLo = na;
+    var cLoT = na;
+    for (var jC = 1; jC <= 6; jC = jC + 1) {
+      var cc = d.close[jC];
+      if (!isna(cc) && (isna(cLo) || cc < cLo)) { cLo = cc; cLoT = d.time[jC]; }
+    }
+    if (!isna(cvdBullRef) && !isna(cLo) && cLo < cvdBullRefPrice && c1 > cvdBullRef) {
+      cvdDivBull = true;
+      cvdBullPlus = isConfirmed && htfSlope > 0;
+      if (showCvdDiv && showCvdLines) {
+        if (cvdBullChartLines.length >= 60 || linesAlive >= 490) {
+          if (cvdBullChartLines.length > 0) { cvdBullChartLines[0].delete(); cvdBullChartLines.shift(); linesAlive = linesAlive - 1; }
+          else if (cvdBearChartLines.length > 0) { cvdBearChartLines[0].delete(); cvdBearChartLines.shift(); linesAlive = linesAlive - 1; }
+        }
+        if (linesAlive < 490) {
+          cvdBullChartLines.push(line.new(cvdBullRefPriceT, cvdBullRefPrice, cLoT, cLo, {color: cvdBullCol, width: 1, style: cvdBullPlus ? "solid" : "dashed", pane: "onchart"}));
+          linesAlive = linesAlive + 1;
+        }
+      }
+    }
+    cvdBullRef = c1;
+    cvdBullRefPrice = cLo;
+    cvdBullRefPriceT = cLoT;
+  }
+  if (cvdPivBear) {
+    var cHi = na;
+    var cHiT = na;
+    for (var jD = 1; jD <= 6; jD = jD + 1) {
+      var cd = d.close[jD];
+      if (!isna(cd) && (isna(cHi) || cd > cHi)) { cHi = cd; cHiT = d.time[jD]; }
+    }
+    if (!isna(cvdBearRef) && !isna(cHi) && cHi > cvdBearRefPrice && c1 < cvdBearRef) {
+      cvdDivBear = true;
+      cvdBearPlus = isConfirmed && htfSlope < 0;
+      if (showCvdDiv && showCvdLines) {
+        if (cvdBearChartLines.length >= 60 || linesAlive >= 490) {
+          if (cvdBearChartLines.length > 0) { cvdBearChartLines[0].delete(); cvdBearChartLines.shift(); linesAlive = linesAlive - 1; }
+          else if (cvdBullChartLines.length > 0) { cvdBullChartLines[0].delete(); cvdBullChartLines.shift(); linesAlive = linesAlive - 1; }
+        }
+        if (linesAlive < 490) {
+          cvdBearChartLines.push(line.new(cvdBearRefPriceT, cvdBearRefPrice, cHiT, cHi, {color: cvdBearCol, width: 1, style: cvdBearPlus ? "solid" : "dashed", pane: "onchart"}));
+          linesAlive = linesAlive + 1;
+        }
+      }
+    }
+    cvdBearRef = c1;
+    cvdBearRefPrice = cHi;
+    cvdBearRefPriceT = cHiT;
+  }
+}
+
+// ============================================================================
+// VISUALS (four hues, translucent fills, lanes outside the frame)
+// ============================================================================
+var slate = "#8b93a7";
+
+// ── Frame guides: dotted 20 / 80 band edges and the 50 midline (a real plot: fill base) ──
+timeseries guideHi = 80;
+timeseries guideLo = 20;
+timeseries midline = 50;
+plotLine(value=[guideHi, guideLo], colors=[opacity(slate, 30), opacity(slate, 30)], width=1,
+  lineStyle="dotted", showPriceDisplay=false,
+  label=["Overbought Level", "Oversold Level"],
+  desc=["Fixed 80 level: wave turns above it are overbought grade", "Fixed 20 level: wave turns below it are oversold grade"]);
+plotLine(value=midline, colors=[opacity(slate, 35)], width=1, lineStyle="dotted", showPriceDisplay=false,
+  label=["Midline"], desc=["Fixed 50 midline: the neutral level of every oscillator in the pane and the base of the surge / score fills"]);
+
+// ── Range money flow: 1px line, one-sided ceiling / floor, surge shading (height = depth) ─
+var mfAbove = !isna(mfVal) && mfVal > 50;
+var thUpCol = opacity(mfBullCol, 45);
+var thDnCol = opacity(mfBearCol, 45);
+var surgeVal = isna(mfVal) ? na : (bullActive ? bofVal : (bearActive ? befVal : 50));
+var surgeAlpha = 1 - surgeTrans / 100;
+timeseries mf = mfVal;
+timeseries upperTh = utVal;
+timeseries lowerTh = ltVal;
+timeseries surge = surgeVal;
+
+if (showMoneyFlow) {
+  plotLine(value=mf, colors=[mfBullCol, mfBearCol], colorIndex=mfAbove ? 0 : 1, width=1,
+    label=["Range Money Flow"], desc=["Range-weighted directional flow oscillator (0..100), colored by its side of 50"]);
+  plotLine(value=upperTh, colors=[thUpCol, "transparent"], colorIndex=mfAbove ? 0 : 1,
+    width=1, lineStyle="dotted", showPriceDisplay=false,
+    label=["Flow Ceiling"], desc=["Adaptive surge ceiling above the midline (shown while the flow is above 50)"]);
+  plotLine(value=lowerTh, colors=[thDnCol, "transparent"], colorIndex=mfAbove ? 1 : 0,
+    width=1, lineStyle="dotted", showPriceDisplay=false,
+    label=["Flow Floor"], desc=["Adaptive surge floor below the midline (shown while the flow is below 50)"]);
+  plotLine(value=surge, colors=[opacity(mfBullCol, 70), opacity(mfBearCol, 70), "transparent"],
+    colorIndex=bullActive ? 0 : (bearActive ? 1 : 2), width=1, showPriceDisplay=false,
+    label=["Flow Surge"], desc=["Surge front: the flow beyond its ceiling / floor, offset 10 toward the midline (50 = no surge)"]);
+  fillBetween(series1=surge, series2=midline, color=bullActive ? mfBullCol : mfBearCol, opacity=surgeAlpha);
+  if (showIgnition) {
+    plotShape(value=newBull || newBear ? mfVal : na, shape="circle", location="absolute",
+      colors=[mfBullCol, mfBearCol], colorIndex=newBull ? 0 : 1, width=3, fill=true, glow=3,
+      label=["Surge Start"], desc=["First bar of a surge episode: bullish color above the ceiling, bearish color below the floor"],
+      tooltip="Surge start: the flow pushed beyond its ceiling / floor (late participants entering)");
+  }
+}
+
+// ── Wave: 2px line, dotted signal, translucent state band, dots on the wave ──
+var hwBull = !isna(hwVal) && !isna(sigVal) && hwVal > sigVal;
+var sigLineCol = opacity(blend(hwBullCol, hwBearCol, 0.5), 55);
+
+if (showWave) {
+  plotLine(value=wave, colors=[hwBullCol, hwBearCol], colorIndex=hwBull ? 0 : 1, width=2,
+    label=["Momentum Wave"], desc=["Momentum wave (0..100), colored by its side of the signal line"]);
+  plotLine(value=sig, colors=[sigLineCol], width=1, lineStyle="dotted", showPriceDisplay=false,
+    label=["Wave Signal"], desc=["Signal companion line (SMA of the wave, or a trailing stop on it)"]);
+  fillBetween(series1=wave, series2=sig, color=hwBull ? hwBullCol : hwBearCol, opacity=(100 - hwTrans) / 100);
+}
+if (showTurning) {
+  plotShape(value=regUp || regDn ? hwVal : na, shape="circle", location="absolute",
+    colors=[hwBullCol, hwBearCol], colorIndex=regUp ? 0 : 1, width=3, fill=true,
+    label=["Wave Turn"], desc=["Wave turn: the wave crossed its signal line (rising color = cross up, falling color = cross down)"],
+    tooltip="Wave turn: wave / signal cross");
+  plotShape(value=osUp || obDn ? hwVal : na, shape="circle", location="absolute",
+    colors=[hwBullCol, hwBearCol], colorIndex=osUp ? 0 : 1, width=6, fill=true, glow=4,
+    label=["Extreme Wave Turn"], desc=["Wave turn from an extreme zone: cross up with the wave under 20 (rising color) or cross down with the wave over 80 (falling color)"],
+    tooltip="Oversold / overbought wave turn (larger glowing dot)");
+}
+
+// ── Order flow lanes (absent until the venue delivers sided trades) ────────────
+if (showTaker && sidedSeen) {
+  plotLine(value=[takerFlow, takerHi, takerLo], colors=[takerCol, opacity(takerCol, 40), opacity(takerCol, 40)], width=1,
+    label=["Taker Money Flow", "Taker Flow Upper Band", "Taker Flow Lower Band"],
+    desc=["Taker money flow (0..100): 50 + 50 x wma(buy - sell) / wma(buy + sell) over the taker window, USD taker volume; above 50 = net buying aggression",
+          "80th percentile (nearest rank) of the taker money flow over the last 100 bars",
+          "20th percentile (nearest rank) of the taker money flow over the last 100 bars"]);
+}
+if (showCvdDiv && sidedSeen) {
+  plotShape(value=cvdDivBull ? -8.5 : (cvdDivBear ? 108.5 : na), shape="diamond", location="absolute",
+    colors=[opacity(cvdBullCol, 60), cvdBullCol, opacity(cvdBearCol, 60), cvdBearCol],
+    colorIndex=cvdDivBull ? (cvdBullPlus ? 1 : 0) : (cvdBearPlus ? 3 : 2), width=4, fill=true,
+    label=["CVD Divergence"], desc=["CVD divergence confirmed on this bar: bullish lane below the frame, bearish lane above it; full tone = the higher-frame CVD slope agrees (the plus grade), 60% tone = base grade"],
+    tooltip="CVD divergence: price extreme not confirmed by the cumulative taker delta (full tone = higher-frame CVD agrees)");
+}
+
+// ── Divergences: small arrows in the pane-edge lanes, optional chart confirm markers ─
+if (showDivs) {
+  plotShape(value=divBull ? w1 : na, shape="arrowUp", location="bottom", colors=[divBullCol],
+    width=5, fill=true, label=["Bullish Wave Divergence"],
+    desc=["Regular bullish wave divergence confirmed on this bar"],
+    tooltip="Price made a lower low while the wave made a higher low (vs the previous in-zone pivot)");
+  plotShape(value=divBear ? w1 : na, shape="arrowDown", location="top", colors=[divBearCol],
+    width=5, fill=true, label=["Bearish Wave Divergence"],
+    desc=["Regular bearish wave divergence confirmed on this bar"],
+    tooltip="Price made a higher high while the wave made a lower high (vs the previous in-zone pivot)");
+}
+if (showChartMarks) {
+  plotShape(value=divBull ? d.low[0] : na, shape="arrowUp", location="belowBar", forceOnChart=true,
+    colors=[divBullCol], width=5, fill=true, label=["Bullish Wave Divergence (Chart)"],
+    desc=["Bullish wave divergence confirm bar marked on the price chart"],
+    tooltip="Bullish wave divergence confirmed on this bar");
+  plotShape(value=divBear ? d.high[0] : na, shape="arrowDown", location="aboveBar", forceOnChart=true,
+    colors=[divBearCol], width=5, fill=true, label=["Bearish Wave Divergence (Chart)"],
+    desc=["Bearish wave divergence confirm bar marked on the price chart"],
+    tooltip="Bearish wave divergence confirmed on this bar");
+}
+
+// ── Reversal flags: small rings (minor) and larger glowing dots (major) in the outer lanes ─
+if (showReversals) {
+  plotShape(value=revUpMinus ? -11 : (revDnMinus ? 111 : na), shape="circle", location="absolute",
+    colors=[revBullCol, revBearCol], colorIndex=revUpMinus ? 0 : 1, width=4, fill=false,
+    label=["Minor Reversal Flag"], desc=["Minor reversal flag (ring): price travelled 0.5 x factor true-ranges from the last reversal; bullish below the frame, bearish above it"],
+    tooltip="Minor reversal flag: top / bottom of an impulse, a retracement may follow");
+  plotShape(value=revUpPlus ? -11 : (revDnPlus ? 111 : na), shape="circle", location="absolute",
+    colors=[revBullCol, revBearCol], colorIndex=revUpPlus ? 0 : 1, width=6, fill=true, glow=4,
+    label=["Major Reversal Flag"], desc=["Major reversal flag (dot): a further same-side reversal with the wave beyond its extreme zone (under 20 bullish, over 80 bearish)"],
+    tooltip="Major reversal flag: later in a trend, with the wave overbought / oversold");
+}
+
+// ── Confluence: published states, height-graded translucent strips, optional score + dial ──
+timeseries upperValTs = upperState;
+timeseries lowerValTs = lowerState;
+timeseries meterValTs = meterVal;
+plotLine(value=[upperValTs, lowerValTs], colors=["transparent"], width=1, showPriceDisplay=false,
+  label=["Bullish Confluence State", "Bearish Confluence State"],
+  desc=["Bullish confluence state: 2 strong, 1 weak, 0 none", "Bearish confluence state: 2 strong, 1 weak, 0 none"]);
+
+var upSt = nz(upperState, 0);
+var loSt = nz(lowerState, 0);
+// The strips grade the state by HEIGHT (0 / 3 / 5 units) under one constant translucent fill and a
+// state-colored outer edge: the renderer tears a fill at every per-bar color or alpha change.
+timeseries upBase = 101;
+timeseries upTop = 101 + (upSt == 2 ? 5 : (upSt == 1 ? 3 : 0));
+timeseries loBase = -1;
+timeseries loBot = -1 - (loSt == 2 ? 5 : (loSt == 1 ? 3 : 0));
+if (showUpper) {
+  plotLine(value=upBase, colors=[opacity(confBullCol, 30)], width=1, lineStyle="dotted", showPriceDisplay=false,
+    label=["Bullish Strip Inner Edge"], desc=["Inner edge of the bullish confluence strip (101)"]);
+  plotLine(value=upTop, colors=[opacity(confBullCol, 20), opacity(confBullCol, 45), opacity(confBullCol, 90)], colorIndex=upSt,
+    width=1, showPriceDisplay=false,
+    label=["Bullish Strip Outer Edge"], desc=["Outer edge of the bullish confluence strip: 3 units up while the bullish confluence is weak, 5 while strong"]);
+  fillBetween(series1=upTop, series2=upBase, color=confBullCol, opacity=0.35);
+}
+if (showLower) {
+  plotLine(value=loBase, colors=[opacity(confBearCol, 30)], width=1, lineStyle="dotted", showPriceDisplay=false,
+    label=["Bearish Strip Inner Edge"], desc=["Inner edge of the bearish confluence strip (-1)"]);
+  plotLine(value=loBot, colors=[opacity(confBearCol, 20), opacity(confBearCol, 45), opacity(confBearCol, 90)], colorIndex=loSt,
+    width=1, showPriceDisplay=false,
+    label=["Bearish Strip Outer Edge"], desc=["Outer edge of the bearish confluence strip: 3 units down while the bearish confluence is weak, 5 while strong"]);
+  fillBetween(series1=loBot, series2=loBase, color=confBearCol, opacity=0.35);
+}
+
+var meterIdx = isna(meterVal) ? 2 : (meterVal > 50 ? 0 : (meterVal < 50 ? 1 : 2));
+plotLine(value=meterValTs, colors=[confBullCol, confBearCol, slate, "transparent"],
+  colorIndex=showMeter ? meterIdx : 3, width=meterWidth, showPriceDisplay=showMeter,
+  label=["Confluence Score"],
+  desc=["Confluence score (0..100): five signed trend elements on a 100/14 lattice; above 50 bullish, below 50 bearish"]);
+if (showMeter) {
+  fillBetween(series1=meterValTs, series2=midline, color=meterVal > 50 ? confBullCol : confBearCol, opacity=0.18);
+}
+
+// the score dial: 110 one-unit boxes right of the last bar + a pointer at the reading
+persist gaugeBoxes = [];
+if (showGauge && isLastBar && !isna(meterVal)) {
+  while (gaugeBoxes.length > 0) { gaugeBoxes[0].delete(); gaugeBoxes.shift(); }
+  var gx1 = d.time[0] + 2 * currentInterval;
+  var gx2 = d.time[0] + 4 * currentInterval;
+  for (var gi = -5; gi < 105; gi = gi + 1) {
+    var gCol = colorGradient(value=gi + 0.5, range=[-5, 105], colorStops=[confBearCol, slate, confBullCol]);
+    gaugeBoxes.push(box.new(gx1, gi + 1, gx2, gi,
+      {bgcolor: opacity(gCol, 85), borderColor: "transparent", borderWidth: 1, borderStyle: "solid"}));
+  }
+  gaugeBoxes.push(box.new(d.time[0] + 1.4 * currentInterval, meterVal + 0.8, d.time[0] + 4.6 * currentInterval, meterVal - 0.8,
+    {bgcolor: meterVal > 50 ? confBullCol : (meterVal < 50 ? confBearCol : slate), borderColor: "transparent", borderWidth: 1, borderStyle: "solid",
+     tooltip: "Confluence score reading"}));
+}
+
+// ============================================================================
+// ALERTS (unconditional: the classic conditions compute regardless of display toggles; the order-flow
+// conditions compute while either order-flow lane is on)
+// ============================================================================
+alertcondition(condition=newBull, title="Bullish Flow Surge",
+  message="Bullish flow surge: the range money flow pushed above its ceiling");
+alertcondition(condition=newBear, title="Bearish Flow Surge",
+  message="Bearish flow surge: the range money flow dropped below its floor");
+alertcondition(condition=mfCrossUp, title="Flow Crossed Above 50",
+  message="Range money flow crossed above the 50 midline");
+alertcondition(condition=mfCrossDn, title="Flow Crossed Below 50",
+  message="Range money flow crossed below the 50 midline");
+alertcondition(condition=regUp, title="Wave Turned Up",
+  message="Momentum wave crossed above its signal line");
+alertcondition(condition=osUp, title="Wave Turned Up From Oversold",
+  message="Momentum wave crossed above its signal line from the oversold zone");
+alertcondition(condition=regDn, title="Wave Turned Down",
+  message="Momentum wave crossed below its signal line");
+alertcondition(condition=obDn, title="Wave Turned Down From Overbought",
+  message="Momentum wave crossed below its signal line from the overbought zone");
+alertcondition(condition=divBull, title="Bullish Wave Divergence",
+  message="Bullish wave divergence: price set a lower low while the wave set a higher low");
+alertcondition(condition=divBear, title="Bearish Wave Divergence",
+  message="Bearish wave divergence: price set a higher high while the wave set a lower high");
+alertcondition(condition=revUpMinus, title="Bullish Reversal Flag",
+  message="Minor bullish reversal flag");
+alertcondition(condition=revUpPlus, title="Major Bullish Reversal Flag",
+  message="Major bullish reversal flag (wave oversold)");
+alertcondition(condition=revDnMinus, title="Bearish Reversal Flag",
+  message="Minor bearish reversal flag");
+alertcondition(condition=revDnPlus, title="Major Bearish Reversal Flag",
+  message="Major bearish reversal flag (wave overbought)");
+alertcondition(condition=freshStrongUp, title="Bullish Confluence Strengthened",
+  message="Bullish confluence reached strong: both oscillators bullish with the wave beyond 56");
+alertcondition(condition=freshWeakUp, title="Bullish Confluence Started",
+  message="Bullish confluence became active (weak or strong)");
+alertcondition(condition=freshStrongDn, title="Bearish Confluence Strengthened",
+  message="Bearish confluence reached strong: both oscillators bearish with the wave under 44");
+alertcondition(condition=freshWeakDn, title="Bearish Confluence Started",
+  message="Bearish confluence became active (weak or strong)");
+alertcondition(condition=meterCrossUp, title="Score Crossed Above 50",
+  message="Confluence score crossed above the 50 midline");
+alertcondition(condition=meterCrossDn, title="Score Crossed Below 50",
+  message="Confluence score crossed below the 50 midline");
+// order-flow alerts: the source is fetched while either lane is on; with both lanes off they stay silent
+alertcondition(condition=newTakerUp, title="Taker Flow Surge Up",
+  message="Taker money flow pushed above its upper band (top-quintile buying aggression over the last 100 bars)");
+alertcondition(condition=newTakerDn, title="Taker Flow Surge Down",
+  message="Taker money flow dropped below its lower band (top-quintile selling aggression over the last 100 bars)");
+alertcondition(condition=cvdDivBull, title="Bullish CVD Divergence",
+  message="Bullish CVD divergence: price set a lower low while the cumulative taker delta set a higher low");
+alertcondition(condition=cvdDivBear, title="Bearish CVD Divergence",
+  message="Bearish CVD divergence: price set a higher high while the cumulative taker delta set a lower high");

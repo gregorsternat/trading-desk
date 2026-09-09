@@ -1,0 +1,22 @@
+{
+  "status": "unverified",
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "observed_at": null,
+  "balances_observed_at": null,
+  "positions_observed_at": null,
+  "open_orders_observed_at": null,
+  "account_mode": null,
+  "collateral": null,
+  "equity_usdc": null,
+  "available_to_trade_usdc": null,
+  "balances_verified": false,
+  "positions_verified": false,
+  "open_orders_verified": false,
+  "available_includes_order_reservations": false,
+  "positions": null,
+  "open_orders": null,
+  "committed_risk_usdc": null,
+  "committed_risk_verified": false,
+  "notes": []
+}

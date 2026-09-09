@@ -1,0 +1,21 @@
+{
+  "status": "collector_verified_session_review_pending",
+  "observed_at": "2026-09-09T19:06:02+00:00",
+  "expires_at": "2026-09-09T20:06:02.563445+00:00",
+  "collector_report": "reports/watchlists/20260909T190602Z.json",
+  "watchlist": [
+    "FARTCOIN",
+    "VVV",
+    "RENDER",
+    "USELESS",
+    "PUMP",
+    "BTC",
+    "HYPE",
+    "LTC",
+    "ZEC",
+    "DOGE"
+  ],
+  "news_status": "not_checked_setup_verification_only",
+  "coverage_complete": false,
+  "note": "This is a collector smoke test, not a completed pre-session skill run. Refresh before use."
+}

@@ -1,0 +1,10 @@
+{
+  "status": "awaiting_verified_source",
+  "requested_at": "2026-09-09T19:04:46+00:00",
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "balance_imported": false,
+  "history_imported": false,
+  "reason": "Portfolio is unauthenticated in the tested browser; Mac later locked; public-address fallback awaits user input.",
+  "last_attempt_at": "2026-09-09T19:12:51+00:00"
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hyperliquid Pair Analysis"
+  short_description: "Analyze named pairs with live charts and sizing"
+  default_prompt: "Use $hyperliquid-analyze to review my selected pairs on the OpenMarket chart."
