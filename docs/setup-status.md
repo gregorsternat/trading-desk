@@ -25,12 +25,16 @@ Fresh per-instrument API collection was also checked for INJ and BTC. Leverage a
 
 The exact OpenMarket shared chart opened through native Chrome. PUMP on `HYPERLIQUID.F` at 1h and all three toolkit names/panels were visually verified. The INJ selector returned the correct Hyperliquid perp venue and was selected; the last observed state was loading candles. The Mac then locked, so a completed INJ chart refresh was not verified. No current trade analysis is being claimed.
 
-## Account initialization pending
+## Account initialized through API — 2026-09-10 follow-up
+
+After the user supplied a public account address, the API import stored six real fills representing two completed positions, one funding receipt and one incoming transfer. Reimport added zero records. The 30 tests passed, and daily reports were generated for September 9 and 10 in Asia/Shanghai.
+
+The account snapshot at 02:32:23 UTC / 10:32:23 Asia/Shanghai contains 100.420806 USDC in the unified account's spot balance, no other nonzero returned token balances, and no positions or orders across all 11 DEXs. Available to Trade remains null pending the portfolio check; account status is partial. The incoming 108.83 USDC plus observed net trading cashflow of -8.409194 USDC matches the balance exactly, but no independent opening snapshot establishes complete reconciliation. See `journal/initialization.json` and dated reviews. API coverage is explicitly limited; no all-time completeness claim is made.
+
+The following describes the earlier browser blocker, before the API initialization:
 
 The portfolio opened but showed **Connect**. It did not provide authenticated balances, positions, orders or history. Browser-tab calls had earlier timed out; native Chrome navigation recovered public-page access. The Mac subsequently locked and needs manual unlocking for further browser work.
 
-No user balance, fill, PnL, leverage or historical trade was invented or imported. `state/account.json` remains unverified, with unknown values represented as null. `journal/initialization.json` records the concrete blocker. A public account address has been requested for the optional read-only API fallback; no address was supplied during setup.
-
-To finish initialization: read the intended connected portfolio after the Mac is unlocked, or use the user-supplied public address for API collection; import the observed bundle and reconcile the daily journal. No private key is needed.
+No account data was imported during that first attempt. The subsequent API import resolves the history and observed-balance blocker; browser cross-check and available collateral verification remain pending. No private key is needed.
 
 No recurring clock schedule was chosen or enabled, and no exchange action was signed or submitted. The skills are on demand. Changes are delivered on `gregorsternat/hyperliquid-workflows`; remote publication is separate from these local checks.

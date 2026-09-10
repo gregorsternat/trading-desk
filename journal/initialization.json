@@ -1,10 +1,45 @@
 {
-  "status": "awaiting_verified_source",
-  "requested_at": "2026-09-09T19:04:46+00:00",
+  "status": "initialized_api_browser_crosscheck_pending",
   "account_label": "main",
-  "source": "https://app.hyperliquid.xyz/portfolio",
-  "balance_imported": false,
-  "history_imported": false,
-  "reason": "Portfolio is unauthenticated in the tested browser; Mac later locked; public-address fallback awaits user input.",
-  "last_attempt_at": "2026-09-09T19:12:51+00:00"
+  "source": "https://api.hyperliquid.xyz/info",
+  "observed_at": "2026-09-10T02:33:21+00:00",
+  "balance_imported": true,
+  "history_imported": true,
+  "fills_imported": 6,
+  "completed_episodes": 2,
+  "funding_events": 1,
+  "cashflow_events": 1,
+  "balance_usdc": "100.420806",
+  "account_snapshot_at": "2026-09-10T02:32:23+00:00",
+  "available_to_trade_verified": false,
+  "history_coverage": {
+    "requested_start": "2020-01-01T00:00:00+00:00",
+    "end_ms": 1789007499920,
+    "status": "api_window_only",
+    "fills_available_limit": 10000,
+    "potential_truncation": false,
+    "complete_account_history": false,
+    "note": "Cross-check the oldest record and portfolio export; API retains only the latest 10000 fills.",
+    "earliest_fill_ms": 1788962996010,
+    "latest_fill_ms": 1788975273682,
+    "source_timezone": "UTC milliseconds",
+    "browser_crosscheck": "pending",
+    "pagination": "Inclusive timestamp overlap; 6 fills returned, below retention cap; no all-time completeness claim."
+  },
+  "gross_closed_pnl_usdc": "-7.241821",
+  "fees_usdc": "1.182777",
+  "funding_usdc": "0.015404",
+  "net_trading_cashflow_usdc": "-8.409194",
+  "reconciliation": {
+    "status": "partial",
+    "observed_inflow_usdc": "108.83",
+    "inflow_plus_net_usdc": "100.420806",
+    "difference_from_observed_balance_usdc": "0.000000",
+    "limitation": "Exact arithmetic agreement over observed events, but no independently observed opening equity snapshot or browser export establishes full account history."
+  },
+  "notes": [
+    "All 11 DEXs returned no current positions and no open orders; no API errors.",
+    "Account is unified; native clearinghouse zero is not the balance. USDC spot balance supplies observed equity, other returned token balances are zero.",
+    "Available to Trade and browser cross-check remain pending. No execution or remote publication performed."
+  ]
 }

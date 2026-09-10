@@ -1,0 +1,132 @@
+{
+  "date": "2026-09-09",
+  "timezone": "Asia/Shanghai",
+  "generated_at": "2026-09-10T02:33:21+00:00",
+  "fills": [
+    {
+      "id": "INJ:886064976583075",
+      "coin": "INJ",
+      "time": 1788962996010,
+      "side": "A",
+      "direction": "Open Short",
+      "price": "6.123",
+      "size": "88.8",
+      "closed_pnl": "0.0",
+      "fee": "0.244675",
+      "fee_token": "USDC",
+      "start_position": "0.0",
+      "order_id": "540324602871",
+      "market_type": "perp",
+      "pnl_token": "USDC"
+    },
+    {
+      "id": "INJ:328999698496863",
+      "coin": "INJ",
+      "time": 1788967488422,
+      "side": "B",
+      "direction": "Close Short",
+      "price": "6.0187",
+      "size": "44.5",
+      "closed_pnl": "4.64135",
+      "fee": "0.120524",
+      "fee_token": "USDC",
+      "start_position": "-44.5",
+      "order_id": "540404259031",
+      "market_type": "perp",
+      "pnl_token": "USDC"
+    },
+    {
+      "id": "INJ:559074422274059",
+      "coin": "INJ",
+      "time": 1788967488422,
+      "side": "B",
+      "direction": "Close Short",
+      "price": "6.0184",
+      "size": "12.0",
+      "closed_pnl": "1.2552",
+      "fee": "0.032499",
+      "fee_token": "USDC",
+      "start_position": "-56.5",
+      "order_id": "540404259031",
+      "market_type": "perp",
+      "pnl_token": "USDC"
+    },
+    {
+      "id": "INJ:737496468180651",
+      "coin": "INJ",
+      "time": 1788967488422,
+      "side": "B",
+      "direction": "Close Short",
+      "price": "6.0168",
+      "size": "32.3",
+      "closed_pnl": "3.43026",
+      "fee": "0.087454",
+      "fee_token": "USDC",
+      "start_position": "-88.8",
+      "order_id": "540404259031",
+      "market_type": "perp",
+      "pnl_token": "USDC"
+    }
+  ],
+  "closed_episodes": [
+    {
+      "coin": "INJ",
+      "opened_ms": 1788962996010,
+      "status": "closed",
+      "fill_ids": [
+        "INJ:886064976583075",
+        "INJ:737496468180651",
+        "INJ:559074422274059",
+        "INJ:328999698496863"
+      ],
+      "closed_pnl": "9.32681",
+      "fees_usdc": "0.485152",
+      "fee_currency_complete": true,
+      "end_position": "0.0",
+      "closed_ms": 1788967488422,
+      "net_before_funding_usdc": "8.841658",
+      "holding_minutes": 74.87353333333333
+    }
+  ],
+  "realized_gross_usdc": "9.32681",
+  "fees_usdc": "0.485152",
+  "funding_cashflow_usdc": "0.015404",
+  "observed_net_trading_cashflow_usdc": "8.857062",
+  "cashflows": [
+    {
+      "id": "562a68205de13705b3a1c99f",
+      "time": 1788962873445,
+      "type": "send",
+      "amount_usdc": "108.83",
+      "scope": "external_inflow_to_account",
+      "note": "API send event: this account is destination and not sender; 108.83 USDC received from another address, spot source to native destination, zero transfer fee. Source account ownership unknown; no counterparty retained."
+    }
+  ],
+  "history_coverage": [
+    {
+      "source": "https://api.hyperliquid.xyz/info",
+      "observed_at": "2026-09-10T02:33:21+00:00",
+      "coverage": {
+        "requested_start": "2020-01-01T00:00:00+00:00",
+        "end_ms": 1789007499920,
+        "status": "api_window_only",
+        "fills_available_limit": 10000,
+        "potential_truncation": false,
+        "complete_account_history": false,
+        "note": "Cross-check the oldest record and portfolio export; API retains only the latest 10000 fills.",
+        "earliest_fill_ms": 1788962996010,
+        "latest_fill_ms": 1788975273682,
+        "source_timezone": "UTC milliseconds",
+        "browser_crosscheck": "pending",
+        "pagination": "Inclusive timestamp overlap; 6 fills returned, below retention cap; no all-time completeness claim."
+      },
+      "counts": {
+        "fills": 6,
+        "funding": 1,
+        "cashflows": 1
+      }
+    }
+  ],
+  "balance_reconciliation": "not_established",
+  "note": "Observed fills are not necessarily a complete day. Cashflow is not equity change or closed-trade return. Funding is not allocated to episodes."
+}

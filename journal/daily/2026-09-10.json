@@ -1,0 +1,89 @@
+{
+  "date": "2026-09-10",
+  "timezone": "Asia/Shanghai",
+  "generated_at": "2026-09-10T02:33:21+00:00",
+  "fills": [
+    {
+      "id": "PUMP:330753595055213",
+      "coin": "PUMP",
+      "time": 1788974161898,
+      "side": "B",
+      "direction": "Open Long",
+      "price": "0.004752",
+      "size": "247293.0",
+      "closed_pnl": "0.0",
+      "fee": "0.17627",
+      "fee_token": "USDC",
+      "start_position": "0.0",
+      "order_id": "540480930638",
+      "market_type": "perp",
+      "pnl_token": "USDC"
+    },
+    {
+      "id": "PUMP:784855247233687",
+      "coin": "PUMP",
+      "time": 1788975273682,
+      "side": "A",
+      "direction": "Close Long",
+      "price": "0.004685",
+      "size": "247293.0",
+      "closed_pnl": "-16.568631",
+      "fee": "0.521355",
+      "fee_token": "USDC",
+      "start_position": "247293.0",
+      "order_id": "540492117909",
+      "market_type": "perp",
+      "pnl_token": "USDC"
+    }
+  ],
+  "closed_episodes": [
+    {
+      "coin": "PUMP",
+      "opened_ms": 1788974161898,
+      "status": "closed",
+      "fill_ids": [
+        "PUMP:330753595055213",
+        "PUMP:784855247233687"
+      ],
+      "closed_pnl": "-16.568631",
+      "fees_usdc": "0.697625",
+      "fee_currency_complete": true,
+      "end_position": "0.0",
+      "closed_ms": 1788975273682,
+      "net_before_funding_usdc": "-17.266256",
+      "holding_minutes": 18.529733333333333
+    }
+  ],
+  "realized_gross_usdc": "-16.568631",
+  "fees_usdc": "0.697625",
+  "funding_cashflow_usdc": "0",
+  "observed_net_trading_cashflow_usdc": "-17.266256",
+  "cashflows": [],
+  "history_coverage": [
+    {
+      "source": "https://api.hyperliquid.xyz/info",
+      "observed_at": "2026-09-10T02:33:21+00:00",
+      "coverage": {
+        "requested_start": "2020-01-01T00:00:00+00:00",
+        "end_ms": 1789007499920,
+        "status": "api_window_only",
+        "fills_available_limit": 10000,
+        "potential_truncation": false,
+        "complete_account_history": false,
+        "note": "Cross-check the oldest record and portfolio export; API retains only the latest 10000 fills.",
+        "earliest_fill_ms": 1788962996010,
+        "latest_fill_ms": 1788975273682,
+        "source_timezone": "UTC milliseconds",
+        "browser_crosscheck": "pending",
+        "pagination": "Inclusive timestamp overlap; 6 fills returned, below retention cap; no all-time completeness claim."
+      },
+      "counts": {
+        "fills": 6,
+        "funding": 1,
+        "cashflows": 1
+      }
+    }
+  ],
+  "balance_reconciliation": "not_established",
+  "note": "Observed fills are not necessarily a complete day. Cashflow is not equity change or closed-trade return. Funding is not allocated to episodes."
+}

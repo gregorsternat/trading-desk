@@ -1,0 +1,36 @@
+[
+  {
+    "coin": "INJ",
+    "opened_ms": 1788962996010,
+    "status": "closed",
+    "fill_ids": [
+      "INJ:886064976583075",
+      "INJ:737496468180651",
+      "INJ:559074422274059",
+      "INJ:328999698496863"
+    ],
+    "closed_pnl": "9.32681",
+    "fees_usdc": "0.485152",
+    "fee_currency_complete": true,
+    "end_position": "0.0",
+    "closed_ms": 1788967488422,
+    "net_before_funding_usdc": "8.841658",
+    "holding_minutes": 74.87353333333333
+  },
+  {
+    "coin": "PUMP",
+    "opened_ms": 1788974161898,
+    "status": "closed",
+    "fill_ids": [
+      "PUMP:330753595055213",
+      "PUMP:784855247233687"
+    ],
+    "closed_pnl": "-16.568631",
+    "fees_usdc": "0.697625",
+    "fee_currency_complete": true,
+    "end_position": "0.0",
+    "closed_ms": 1788975273682,
+    "net_before_funding_usdc": "-17.266256",
+    "holding_minutes": 18.529733333333333
+  }
+]

@@ -1,6 +1,6 @@
 # Trading lessons
 
-No trade-performance lesson has been established in this repository yet. Initial account and fill import is pending verified source access. Supplied indicator code and prior conversation recollections are not evidence of current account state or a proven strategy.
+Initial API import on 2026-09-10 contains two completed positions (INJ short and PUMP long), six fills and one funding event. See `journal/reviews/2026-09-09.md` and `journal/reviews/2026-09-10.md`. Neither a strategy edge nor a trade-quality judgment is established by this sample. Initial planned risk, SL/TP and leverage remain unknown; future entry plans must retain these to support comparable net-R reviews. Browser account cross-check remains pending.
 
 ## Process rules in use
 

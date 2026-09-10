@@ -1,0 +1,33 @@
+{
+  "observed_at": "2026-09-10T02:32:51+00:00",
+  "events": [
+    {
+      "id": "562a68205de13705b3a1c99f",
+      "time": 1788962873445,
+      "delta_fields": [
+        "type",
+        "user",
+        "destination",
+        "sourceDex",
+        "destinationDex",
+        "token",
+        "amount",
+        "usdcValue",
+        "fee",
+        "nativeTokenFee",
+        "nonce",
+        "feeToken"
+      ],
+      "values": {
+        "type": "send",
+        "sourceDex": "spot",
+        "destinationDex": "",
+        "token": "USDC",
+        "amount": "108.83",
+        "fee": "0.0"
+      },
+      "user_is_sender": false,
+      "user_is_destination": true
+    }
+  ]
+}
