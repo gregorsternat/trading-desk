@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-09-10T12:30:49.990451+00:00",
+  "decision_list": [],
+  "statuses": {
+    "ETHFI": "WAIT_EVENT",
+    "ZEC": "WAIT_EVENT"
+  },
+  "prior_scenarios": {
+    "ETHFI": "Expired at 12:05 UTC without a confirmed support-hold setup. Subsequently invalidated structurally: 12:10 five-minute bar closed 0.63384 at 12:14:59.999 UTC, below 0.6365. Do not relabel the post-expiry move as an executed trade.",
+    "ZEC": "Invalidated before expiry: 12:00 five-minute bar closed 1217.8 at 12:04:59.999 UTC, below 1220. The 1238.38-1245.79 reclaim condition never occurred during its validity window."
+  },
+  "expires_at": "2026-09-10T12:30:00Z",
+  "reports": [
+    "reports/analysis/20260910T123049Z-ETHFI.md",
+    "reports/analysis/20260910T123049Z-ZEC.md"
+  ]
+}

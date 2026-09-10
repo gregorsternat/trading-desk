@@ -1,0 +1,84 @@
+{
+  "observed_at": "2026-09-10T11:51:39.694048+00:00",
+  "collector_coverage": {
+    "active": 36,
+    "below_liquidity_floor": 100,
+    "delisted": 201,
+    "non_crypto": 126,
+    "quiet": 14,
+    "unclassified": 10,
+    "watchable": 30
+  },
+  "reviewed_coverage": {
+    "active": 36,
+    "below_liquidity_floor": 100,
+    "delisted": 201,
+    "non_crypto": 135,
+    "quiet": 14,
+    "unclassified": 1,
+    "watchable": 30
+  },
+  "resolved_non_crypto": {
+    "mkts:US500": {
+      "asset_class": "non_crypto",
+      "reason": "Broad US equity exposure; SPY reference",
+      "source": "https://markets.xyz/docs/available-assets",
+      "verified_date": "2026-09-10"
+    },
+    "mkts:USTECH": {
+      "asset_class": "non_crypto",
+      "reason": "US non-financial large-cap equity exposure; QQQ reference",
+      "source": "https://markets.xyz/docs/available-assets",
+      "verified_date": "2026-09-10"
+    },
+    "mkts:SMALL2000": {
+      "asset_class": "non_crypto",
+      "reason": "US small-cap equity exposure; IWM reference",
+      "source": "https://markets.xyz/docs/available-assets",
+      "verified_date": "2026-09-10"
+    },
+    "mkts:USBOND": {
+      "asset_class": "non_crypto",
+      "reason": "US Treasury bonds of 20+ years maturity; TLT reference",
+      "source": "https://markets.xyz/docs/available-assets",
+      "verified_date": "2026-09-10"
+    },
+    "io:SNDK": {
+      "asset_class": "non_crypto",
+      "reason": "equity reference issuer: SanDisk Corp.; exact symbol verified in Entropy asset directory",
+      "source": "https://docs.entropy.io/asset-directory/equity-assets.md",
+      "verified_date": "2026-09-10"
+    },
+    "io:NBIS": {
+      "asset_class": "non_crypto",
+      "reason": "equity reference issuer: Nebius Group NV; exact symbol verified in Entropy asset directory",
+      "source": "https://docs.entropy.io/asset-directory/equity-assets.md",
+      "verified_date": "2026-09-10"
+    },
+    "io:GPRO": {
+      "asset_class": "non_crypto",
+      "reason": "equity reference issuer: GoPro Inc; exact symbol verified in Entropy asset directory",
+      "source": "https://docs.entropy.io/asset-directory/equity-assets.md",
+      "verified_date": "2026-09-10"
+    },
+    "io:ANTH": {
+      "asset_class": "non_crypto",
+      "reason": "pre-ipo reference issuer: Anthropic PBC; exact symbol verified in Entropy asset directory",
+      "source": "https://docs.entropy.io/asset-directory/pre-ipo-assets.md",
+      "verified_date": "2026-09-10"
+    },
+    "io:OAI": {
+      "asset_class": "non_crypto",
+      "reason": "pre-ipo reference issuer: OpenAI Group PBC; exact symbol verified in Entropy asset directory",
+      "source": "https://docs.entropy.io/asset-directory/pre-ipo-assets.md",
+      "verified_date": "2026-09-10"
+    }
+  },
+  "remaining_unknown": [
+    "para:ANSEM"
+  ],
+  "gap_reason": "Paragon products page did not identify exact ANSEM underlying; official X retrieval failed. A matching token elsewhere is insufficient.",
+  "eligibility_changed": false,
+  "rescan_required": false,
+  "coverage_complete": false
+}

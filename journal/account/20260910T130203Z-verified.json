@@ -1,0 +1,29 @@
+{
+  "status": "verified",
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "observed_at": "2026-09-10T12:59:59Z",
+  "balances_observed_at": "2026-09-10T12:59:59Z",
+  "positions_observed_at": "2026-09-10T12:59:59Z",
+  "open_orders_observed_at": "2026-09-10T12:59:59Z",
+  "account_mode": "unified",
+  "collateral": "USDC",
+  "equity_usdc": 100.42,
+  "available_to_trade_usdc": 100.42,
+  "balances_verified": true,
+  "positions_verified": true,
+  "open_orders_verified": true,
+  "available_includes_order_reservations": true,
+  "positions": [],
+  "open_orders": [],
+  "committed_risk_usdc": 0,
+  "committed_risk_verified": true,
+  "notes": [
+    "Read-only UI sequence completed by 12:59:59 UTC: refreshed official Portfolio Balances, Positions, Open Orders, then Trade Available to Trade and Unified mode.",
+    "Equity/available 100.42 USDC; total/available balance 100.42080600 USDC. No positions/orders, hence zero committed risk. Fees 0.0432% taker and 0.0144% maker. No execution or signing."
+  ],
+  "balance_usdc_display": "100.42080600",
+  "available_to_trade_source": "https://app.hyperliquid.xyz/trade",
+  "available_to_trade_observed_at": "2026-09-10T12:59:59Z",
+  "access_status": "read_only_account_visible"
+}

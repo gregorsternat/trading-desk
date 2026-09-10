@@ -1,0 +1,22 @@
+{
+  "observed_at": "2026-09-10T11:40:48.835190+00:00",
+  "decisions": [],
+  "pairs": {
+    "VVV": {
+      "status": "NO_TRADE",
+      "previous_review_status": "EXPIRED without zone test; no trade plan or missed fill.",
+      "report": "reports/analysis/20260910T113911Z-VVV.md",
+      "plan": null,
+      "calculation": null
+    },
+    "HYPE": {
+      "status": "WAIT_EVENT",
+      "previous_review_status": "EXPIRED with zone tested but rejection condition unfulfilled. The observation prerequisite occurred, not a trade trigger or historical fill.",
+      "report": "reports/analysis/20260910T113911Z-HYPE.md",
+      "plan": null,
+      "calculation": null
+    }
+  },
+  "account_snapshot": "journal/account/20260910T113911Z-verified.json",
+  "review_expires_at": "2026-09-10T11:50:00Z"
+}

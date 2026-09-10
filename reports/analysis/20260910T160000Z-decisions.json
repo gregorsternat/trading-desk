@@ -1,0 +1,20 @@
+{
+  "observed_at": "2026-09-10T16:00:00.087980+00:00",
+  "decision_list": [],
+  "statuses": {
+    "ETHFI": "WAIT_EVENT",
+    "TAO": "WAIT_EVENT",
+    "NEAR": "WAIT_EVENT"
+  },
+  "expires_at": "2026-09-10T16:15:00.087980+00:00",
+  "reports": [
+    "reports/analysis/20260910T160000Z-ETHFI.md",
+    "reports/analysis/20260910T160000Z-TAO.md",
+    "reports/analysis/20260910T160000Z-NEAR.md"
+  ],
+  "account_report": "journal/account/20260910T160000Z-verified.json",
+  "chart_report": "reports/analysis/20260910T160000Z-chart-evidence.json",
+  "notes": [
+    "Research-only conditional observations; no actionable entry has been established."
+  ]
+}

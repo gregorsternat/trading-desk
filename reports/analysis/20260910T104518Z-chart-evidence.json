@@ -1,0 +1,174 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F",
+  "contract_type": "PERP",
+  "observed_via": "Chrome native accessibility and screenshots",
+  "settings": {
+    "price_action": {
+      "internal_structure": "All",
+      "internal_lookback": 5,
+      "swing_structure": "All",
+      "swing_lookback": 50,
+      "pivot_letters": false,
+      "range_extremes": false
+    },
+    "trend_signals": {
+      "trading_style": "None",
+      "entry_logic": "Confirmation + Exits",
+      "trigger_width": 12,
+      "candle_shading": "Confirmation Simple",
+      "grade_by_aggression": true,
+      "tag_new_money_vs_covering": true,
+      "node_window_bars": 200,
+      "node_grid_ticks": 10,
+      "aggression_and_flow_rows": true
+    },
+    "oscillator": {
+      "draw_wave": true,
+      "wave_smoothing": 7,
+      "signal_line_mode": "SMA",
+      "signal_line_span": 3,
+      "mark_wave_turns": true,
+      "draw_taker_money_flow": true,
+      "taker_window": 14,
+      "scan_cvd_divergences": true,
+      "connect_cvd_price_pivots": false,
+      "cvd_anchor": "UTC day"
+    },
+    "scope": "Read in VVV chart dialogs; same guest workspace retained for HYPE; no settings changed. Active settings do not prove every data lane is populated."
+  },
+  "observations": {
+    "VVV": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T10:38:51Z",
+        "bar_open": "2026-09-10T09:00:00Z",
+        "bar_close": "2026-09-10T09:59:59.999Z",
+        "ohlc_display": [
+          24.3,
+          24.56,
+          23.7,
+          23.99
+        ],
+        "adaptive_trail": 26.89,
+        "trail_buffer_edge": 25.86,
+        "range_money_flow": 56.25,
+        "flow_ceiling": 61.32,
+        "flow_floor": 44.82,
+        "price_action": "Earlier bullish BOS led into the visible 29.45 high; a large correction followed. Latest price remains well below the hourly trail. Old BOS does not establish a fresh entry.",
+        "oscillator": "Classic range flow is above 50 while the visible wave has recovered; this conflicts with the corrective price/trail regime."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T10:41:08Z",
+        "bar_open": "2026-09-10T10:15:00Z",
+        "bar_close": "2026-09-10T10:29:59.999Z",
+        "ohlc_display": [
+          23.97,
+          23.99,
+          23.58,
+          23.64
+        ],
+        "adaptive_trail": 24.89,
+        "trail_buffer_edge": 24.57,
+        "range_money_flow": 43.17,
+        "flow_ceiling": 55.48,
+        "flow_floor": 35.37,
+        "price_action": "Bearish CHoCH/BOS visible after the 29.45 peak; a bearish order-block tooltip is visible near the overhead 24.4-24.7 region. Approximate chart zone, not precise order bounds.",
+        "oscillator": "Classic range flow below 50; the right-edge wave is low. No new confirmed bullish divergence was identified.",
+        "panel_at_observation": "Short 3/4, longs unwinding; Adaptive Trail Down trend. This is a live readout, not a timestamped fresh marker."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T10:41:39Z",
+        "bar_open": "2026-09-10T10:35:00Z",
+        "bar_close": "2026-09-10T10:39:59.999Z",
+        "ohlc_display": [
+          23.79,
+          24.07,
+          23.76,
+          24.07
+        ],
+        "adaptive_trail": 24.45,
+        "trail_buffer_edge": 24.25,
+        "range_money_flow": 50.86,
+        "flow_ceiling": 56.03,
+        "flow_floor": 43.05,
+        "price_action": "A rebound from the earlier 22.22 low has developed multiple internal breaks; the latest bounce remains below the overhead trail and supply around 24.4-24.5. Historical demand boxes below price are not resting liquidity.",
+        "oscillator": "Closed-bar classic flow just above 50; short-term rebound does not reverse the 15m regime.",
+        "panel_at_observation": "Short + 4/4, longs unwinding; Adaptive Trail Down trend. No fresh signal timestamp established."
+      }
+    ],
+    "HYPE": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T10:42:45Z",
+        "bar_open": "2026-09-10T09:00:00Z",
+        "bar_close": "2026-09-10T09:59:59.999Z",
+        "ohlc_display": [
+          82.98,
+          83.39,
+          82.55,
+          82.8
+        ],
+        "adaptive_trail": 86.04,
+        "trail_buffer_edge": 85.23,
+        "range_money_flow": 49.88,
+        "flow_ceiling": 61.35,
+        "flow_floor": 48.87,
+        "price_action": "89.60 visible high followed by correction, a lower rebound and renewed breakdown. Overhead historical supply near 86-88; historical demand around 81-81.6.",
+        "oscillator": "Classic range flow near/below midline; no established bullish reversal.",
+        "panel_at_observation": "Short + 4/4, longs unwinding; Adaptive Trail Down trend. Readout not a new signal."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T10:43:25Z",
+        "bar_open": "2026-09-10T10:15:00Z",
+        "bar_close": "2026-09-10T10:29:59.999Z",
+        "ohlc_display": [
+          82.92,
+          83.01,
+          82.65,
+          82.73
+        ],
+        "adaptive_trail": 84.17,
+        "trail_buffer_edge": 83.81,
+        "range_money_flow": 45.12,
+        "flow_ceiling": 60.88,
+        "flow_floor": 34.6,
+        "price_action": "Bearish breaks from the 87.04 visible swing high; current price below the trail/buffer and nearer local lows. Small bullish internal CHoCH marks do not erase the broader sequence.",
+        "oscillator": "Classic flow remains below 50 and the latest wave is weak/recovering rather than a confirmed trend reversal.",
+        "panel_at_observation": "Short + 4/4, longs unwinding; Adaptive Trail Down trend."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T10:44:19Z",
+        "bar_open": "2026-09-10T10:35:00Z",
+        "bar_close": "2026-09-10T10:39:59.999Z",
+        "ohlc_display": [
+          82.55,
+          82.89,
+          82.55,
+          82.83
+        ],
+        "adaptive_trail": 83.34,
+        "trail_buffer_edge": 83.14,
+        "range_money_flow": 48.18,
+        "flow_ceiling": 54.86,
+        "flow_floor": 38.83,
+        "price_action": "Prior 82.33 low, recovery toward 84 and renewed weakening. The latest bar rebounds from 82.55 but remains below the 83.14/83.34 trend zone. No completed rejection at that zone was observed.",
+        "oscillator": "Classic range flow still below 50; wave recovery conflicts with chasing a fresh low.",
+        "panel_at_observation": "Short + 4/4, longs unwinding; Adaptive Trail Down trend."
+      }
+    ]
+  },
+  "last_completed_signal_bar": null,
+  "signal_timestamp_limitation": "The last completed observation bars were selected by crosshair and checked. Exact timestamps of the most recent toolkit entry markers were not established; current readout labels are not fresh confirmed signals.",
+  "data_quality": [
+    "Old PUMP OHLC initially remained after switching VVV. Those values were discarded; crosshair selection gave VVV OHLC that matched the API.",
+    "Ticker switches and timeframe loads were allowed to finish before interpretation.",
+    "Animated/overlapping readout fields were not parsed into exact trading values.",
+    "Taker flow and CVD options are enabled, but exact closed-bar taker readings/CVD divergence timestamps were not established. Range Money Flow is price-derived.",
+    "Screenshots were inspected in the tool output; no image files were saved."
+  ]
+}

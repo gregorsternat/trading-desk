@@ -1,0 +1,204 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F PERP",
+  "settings": {
+    "trend_trigger_display": 12,
+    "range_oscillator_overbought": 80,
+    "range_oscillator_midline": 50,
+    "other_settings": "Not changed; internal/swing lookbacks not opened or assumed."
+  },
+  "limitations": [
+    "Toolkit observations read from actual live chart/closed-bar crosshair, not indicator source code.",
+    "Trend dashboard current labels are intrabar unless explicitly dated; exact most recent entry-signal timestamp not isolated, hence no new completed entry signal asserted.",
+    "Adaptive Trail labels for ETHFI and NEAR rounded to two decimals; these approximate values cannot define exact executable stop levels.",
+    "Classic range money flow is price-derived; no real taker/CVD claim. Momentum-wave lane was visually available on NEAR 5m; other notes use actual legend values only."
+  ],
+  "pairs": {
+    "ETHFI": [
+      {
+        "timeframe": "1h",
+        "bar_open_utc": "2026-09-10T14:00:00Z",
+        "observed_at": "2026-09-10T15:49:32Z",
+        "ohlc_chart_display": [
+          0.647,
+          0.712,
+          0.646,
+          0.691
+        ],
+        "price_action": "Upward BOS above old approximately .640 structure; strong expansion hour, live high .715.",
+        "adaptive_trail_display": 0.63,
+        "trail_buffer_display": 0.64,
+        "range_money_flow": 53.49,
+        "flow_ceiling": 53.99,
+        "flow_floor": 43.78,
+        "extra": "",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      },
+      {
+        "timeframe": "15m",
+        "bar_open_utc": "2026-09-10T15:30:00Z",
+        "observed_at": "2026-09-10T15:50:27Z",
+        "ohlc_chart_display": [
+          0.704,
+          0.715,
+          0.685,
+          0.695
+        ],
+        "price_action": "Bullish CHoCH preceded expansion; upper wick rejection from .715. No fresh defended retest.",
+        "adaptive_trail_display": 0.66,
+        "trail_buffer_display": 0.67,
+        "range_money_flow": 61.91,
+        "flow_ceiling": 57.68,
+        "flow_floor": 45.03,
+        "extra": "",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      },
+      {
+        "timeframe": "5m",
+        "bar_open_utc": "2026-09-10T15:45:00Z",
+        "observed_at": "2026-09-10T15:51:10Z",
+        "ohlc_chart_display": [
+          0.695,
+          0.697,
+          0.681,
+          0.692
+        ],
+        "price_action": "Pullback toward bullish trail after vertical expansion; volatile lower wick, no confirmed continuation entry.",
+        "adaptive_trail_display": 0.67,
+        "trail_buffer_display": 0.68,
+        "range_money_flow": 62.34,
+        "flow_ceiling": 64.13,
+        "flow_floor": 43.25,
+        "extra": "",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      }
+    ],
+    "TAO": [
+      {
+        "timeframe": "1h",
+        "bar_open_utc": "2026-09-10T14:00:00Z",
+        "observed_at": "2026-09-10T15:53:24Z",
+        "ohlc_chart_display": [
+          243.12,
+          244.57,
+          237.55,
+          239.51
+        ],
+        "price_action": "Bearish BOS under approximately 250; price approaches prior demand near 234\u2013236.",
+        "adaptive_trail_display": 255.31,
+        "trail_buffer_display": 251.36,
+        "range_money_flow": 56.29,
+        "flow_ceiling": 55.01,
+        "flow_floor": 32.13,
+        "extra": "Classic flow above 50 conflicts with bearish price; it is not actual inflow.",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      },
+      {
+        "timeframe": "15m",
+        "bar_open_utc": "2026-09-10T15:30:00Z",
+        "observed_at": "2026-09-10T15:53:52Z",
+        "ohlc_chart_display": [
+          240.08,
+          242.09,
+          239.74,
+          240.57
+        ],
+        "price_action": "Lower highs and bearish structure; last low 237.55 nearby.",
+        "adaptive_trail_display": 247.18,
+        "trail_buffer_display": 245.29,
+        "range_money_flow": 48.1,
+        "flow_ceiling": 55.99,
+        "flow_floor": 37.64,
+        "extra": "",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      },
+      {
+        "timeframe": "5m",
+        "bar_open_utc": "2026-09-10T15:45:00Z",
+        "observed_at": "2026-09-10T15:54:44Z",
+        "ohlc_chart_display": [
+          240.57,
+          241,
+          240,
+          240.39
+        ],
+        "price_action": "Price beneath descending trail; nearby supply around 243\u2013245, no fresh retest rejection yet.",
+        "adaptive_trail_display": 244.43,
+        "trail_buffer_display": 243.28,
+        "range_money_flow": 44.08,
+        "flow_ceiling": 52.21,
+        "flow_floor": 39.13,
+        "extra": "",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      }
+    ],
+    "NEAR": [
+      {
+        "timeframe": "1h",
+        "bar_open_utc": "2026-09-10T14:00:00Z",
+        "observed_at": "2026-09-10T15:55:42Z",
+        "ohlc_chart_display": [
+          2.433,
+          2.451,
+          2.392,
+          2.42
+        ],
+        "price_action": "Broader rising structure after pullback from 2.651; hovering near hourly bullish trail.",
+        "adaptive_trail_display": 2.38,
+        "trail_buffer_display": 2.42,
+        "range_money_flow": 43.73,
+        "flow_ceiling": 54.13,
+        "flow_floor": 42.79,
+        "extra": "Current dashboard Short+ conflicts with Up trend adaptive trail; no independent votes.",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      },
+      {
+        "timeframe": "15m",
+        "bar_open_utc": "2026-09-10T15:30:00Z",
+        "observed_at": "2026-09-10T15:56:16Z",
+        "ohlc_chart_display": [
+          2.418,
+          2.4629,
+          2.4162,
+          2.4528
+        ],
+        "price_action": "Bullish CHoCH on rebound, but price meets descending 15m trail. Supply around 2.53\u20132.55.",
+        "adaptive_trail_display": 2.48,
+        "trail_buffer_display": 2.46,
+        "range_money_flow": 50.28,
+        "flow_ceiling": 59.21,
+        "flow_floor": 45.79,
+        "extra": "Current Long+ short-covering label conflicts with Down trend trail.",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      },
+      {
+        "timeframe": "5m",
+        "bar_open_utc": "2026-09-10T15:50:00Z",
+        "observed_at": "2026-09-10T15:56:53Z",
+        "ohlc_chart_display": [
+          2.469,
+          2.479,
+          2.46,
+          2.46
+        ],
+        "price_action": "BOS upward from approximately 2.44, followed by small rejection at 2.479. Nearby visible supply 2.49\u20132.50.",
+        "adaptive_trail_display": 2.41,
+        "trail_buffer_display": 2.42,
+        "range_money_flow": 59.95,
+        "flow_ceiling": 63.11,
+        "flow_floor": 43.5,
+        "extra": "Live momentum wave approximately 84.3, above 80; live signal approximately 72.3. These are developing values, not a confirmed divergence.",
+        "last_completed_entry_signal_at": null,
+        "signal_time_reason": "Closed observation bar is known; exact latest toolkit entry-trigger bar not isolated."
+      }
+    ]
+  }
+}

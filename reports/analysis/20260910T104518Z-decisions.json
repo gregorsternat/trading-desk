@@ -1,0 +1,26 @@
+{
+  "observed_at": "2026-09-10T10:47:47.859330+00:00",
+  "status": "DATA_BLOCKED",
+  "decisions": [],
+  "pairs": {
+    "VVV": {
+      "status": "DATA_BLOCKED",
+      "technical_assessment": "WAIT_EVENT",
+      "report": "reports/analysis/20260910T104518Z-VVV.md",
+      "plan": null,
+      "calculation": null
+    },
+    "HYPE": {
+      "status": "DATA_BLOCKED",
+      "technical_assessment": "WAIT_EVENT",
+      "report": "reports/analysis/20260910T104518Z-HYPE.md",
+      "plan": null,
+      "calculation": null
+    }
+  },
+  "blockers": [
+    "Current account not connected; available collateral/exposures/reservations/committed risk unknown.",
+    "No newly confirmed structural rejection or fresh timestamped entry signal established."
+  ],
+  "review_expires_at": "2026-09-10T11:00:00Z"
+}

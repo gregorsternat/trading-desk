@@ -1,0 +1,161 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F",
+  "contract_type": "PERP",
+  "observed_via": "Native Chrome accessibility and screenshots",
+  "settings": {
+    "price_action": {
+      "internal_structure": "All",
+      "internal_lookback": 5,
+      "swing_structure": "All",
+      "swing_lookback": 50,
+      "pivot_letters": false,
+      "range_extremes": false
+    },
+    "trend_signals": {
+      "trading_style": "None",
+      "entry_logic": "Confirmation + Exits",
+      "trigger_width": 12,
+      "candle_shading": "Confirmation Simple",
+      "grade_by_aggression": true,
+      "tag_new_money_vs_covering": true,
+      "node_window_bars": 200,
+      "node_grid_ticks": 10,
+      "aggression_and_flow_rows": true
+    },
+    "oscillator": {
+      "draw_wave": true,
+      "wave_smoothing": 7,
+      "signal_line_mode": "SMA",
+      "signal_line_span": 3,
+      "mark_wave_turns": true,
+      "draw_taker_money_flow": true,
+      "taker_window": 14,
+      "scan_cvd_divergences": true,
+      "connect_cvd_price_pivots": false,
+      "cvd_anchor": "UTC day"
+    },
+    "scope": "Settings last inspected in this same workspace at 11:05-11:06 UTC; not re-opened during this refresh. No settings changed by the analyst."
+  },
+  "observations": {
+    "VVV": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T11:23:45Z",
+        "bar_open": "2026-09-10T10:00:00Z",
+        "ohlc": [
+          24.03,
+          24.11,
+          23.58,
+          23.75
+        ],
+        "trail": 26.86,
+        "buffer": 25.84,
+        "flow": 55.37,
+        "ceiling": 61.29,
+        "floor": 44.87,
+        "structure": "Correction after 29.45 high, with current recovery below hourly trail. No new hourly close since previous review.",
+        "momentum": "Flow above 50 conflicts with the corrective regime."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T11:24:01Z",
+        "bar_open": "2026-09-10T11:00:00Z",
+        "ohlc": [
+          23.76,
+          23.77,
+          23.59,
+          23.69
+        ],
+        "trail": 24.86,
+        "buffer": 24.55,
+        "flow": 43.6,
+        "ceiling": 55.3,
+        "floor": 35.5,
+        "structure": "Sideways recovery below 24.55-24.86 and historical overhead supply; broader corrective structure persists.",
+        "momentum": "Closed-bar flow below 50; live rebound has not yet confirmed a higher-frame reversal."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T11:24:39Z",
+        "bar_open": "2026-09-10T11:15:00Z",
+        "ohlc": [
+          23.69,
+          23.95,
+          23.69,
+          23.89
+        ],
+        "trail": 24.36,
+        "buffer": 24.17,
+        "flow": 44.02,
+        "ceiling": 55.66,
+        "floor": 43.2,
+        "structure": "Recovery from 23.594 toward the overhead 24.17-24.36 region; no completed rejection. Historical supply near 24.4-24.5 remains above.",
+        "momentum": "Wave recovers; live panel shows Long 2/4 while Adaptive Trail remains Down trend. This developing conflict is neither a confirmed long nor a reason for an immediate short."
+      }
+    ],
+    "HYPE": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T11:23:04Z",
+        "bar_open": "2026-09-10T10:00:00Z",
+        "ohlc": [
+          82.8,
+          83.01,
+          82.44,
+          82.62
+        ],
+        "trail": 85.8,
+        "buffer": 85.0,
+        "flow": 47.57,
+        "ceiling": 61.28,
+        "floor": 48.61,
+        "structure": "Hourly correction and lower rebound persist. No new completed hourly bar since previous review.",
+        "momentum": "Flow below 50; current live recovery remains below the hourly filter."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T11:22:51Z",
+        "bar_open": "2026-09-10T11:00:00Z",
+        "ohlc": [
+          82.62,
+          82.7,
+          81.99,
+          82.69
+        ],
+        "trail": 84.04,
+        "buffer": 83.68,
+        "flow": 45.11,
+        "ceiling": 60.64,
+        "floor": 34.76,
+        "structure": "The completed 11:00 bar recovered the 81.991 excursion and closed above 82.33. Broader lower structure remains below the trend region.",
+        "momentum": "Flow below 50, wave recovering; no confirmed directional reversal."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T11:22:24Z",
+        "bar_open": "2026-09-10T11:15:00Z",
+        "ohlc": [
+          82.69,
+          82.8,
+          82.69,
+          82.78
+        ],
+        "trail": 83.14,
+        "buffer": 82.94,
+        "flow": 46.06,
+        "ceiling": 54.55,
+        "floor": 39.14,
+        "structure": "Successive rebound bars approach the 82.94-83.14 overhead trend region without a completed rejection.",
+        "momentum": "Wave rises from its lower range while classic flow stays below 50; bearish continuation timing remains unconfirmed."
+      }
+    ]
+  },
+  "last_completed_signal_bar": null,
+  "limitations": [
+    "OHLC and toolkit values are rounded chart readings on selected completed bars; current ticker prices are separate live observations.",
+    "Latest completed entry-marker timestamp not established. Live signal labels are developing readouts, not trade confirmations. VVV live Long 2/4 at 11:24:39 conflicts with its downward Adaptive Trail.",
+    "Taker/CVD settings enabled; exact completed-bar taker/CVD series not established. Range Money Flow is price-derived.",
+    "Transient stale ticker/OHLC values during switching were discarded. No screenshot files persisted."
+  ]
+}

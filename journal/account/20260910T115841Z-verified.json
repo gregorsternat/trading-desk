@@ -1,0 +1,30 @@
+{
+  "status": "verified",
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "observed_at": "2026-09-10T11:56:25Z",
+  "balances_observed_at": "2026-09-10T11:55:23Z",
+  "positions_observed_at": "2026-09-10T11:55:36Z",
+  "open_orders_observed_at": "2026-09-10T11:55:48Z",
+  "account_mode": "unified",
+  "collateral": "USDC",
+  "equity_usdc": 100.42,
+  "available_to_trade_usdc": 100.42,
+  "balances_verified": true,
+  "positions_verified": true,
+  "open_orders_verified": true,
+  "available_includes_order_reservations": true,
+  "positions": [],
+  "open_orders": [],
+  "committed_risk_usdc": 0,
+  "committed_risk_verified": true,
+  "notes": [
+    "Read-only official portfolio after reload: equity $100.42; sole total/available USDC balance 100.42080600. Separate global Positions and Open Orders tabs explicitly empty.",
+    "Official trade page subsequently read: Unified mode, Available to Trade 100.42 USDC, current HYPE position 0.00. Empty ticket defaults are not proposed leverage or actual exposure.",
+    "Zero committed risk derives from observed empty global positions/orders. Fees displayed 0.0432% taker / 0.0144% maker. No signing or order actions. Observation timestamps conservatively bound the read sequence."
+  ],
+  "balance_usdc_display": "100.42080600",
+  "available_to_trade_source": "https://app.hyperliquid.xyz/trade",
+  "available_to_trade_observed_at": "2026-09-10T11:56:25Z",
+  "access_status": "read_only_account_visible"
+}

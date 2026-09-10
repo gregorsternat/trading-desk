@@ -1,0 +1,31 @@
+{
+  "status": "verified",
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "observed_at": "2026-09-10T11:39:08Z",
+  "balances_observed_at": "2026-09-10T11:39:08Z",
+  "positions_observed_at": "2026-09-10T11:39:08Z",
+  "open_orders_observed_at": "2026-09-10T11:39:08Z",
+  "account_mode": "unified",
+  "collateral": "USDC",
+  "equity_usdc": 100.42,
+  "available_to_trade_usdc": 100.42,
+  "balances_verified": true,
+  "positions_verified": true,
+  "open_orders_verified": true,
+  "available_includes_order_reservations": true,
+  "positions": [],
+  "open_orders": [],
+  "committed_risk_usdc": 0,
+  "committed_risk_verified": true,
+  "notes": [
+    "UI verification completed by 11:39:08 UTC. Official HYPE trade page reloaded; temporary loading zeros discarded. Available to Trade 100.42 USDC and Unified mode read after loading at 11:38:27 UTC.",
+    "Portfolio subsequently inspected: total/trading equity $100.42, total and available USDC balance 100.42080600. Separate global Positions/Open Orders tabs returned no positions/orders.",
+    "Use two-decimal equity/available conservatively. Zero committed risk and no reservations derive from the observed empty perimeter. Fees displayed 0.0432% taker / 0.0144% maker.",
+    "No wallet address persisted. Signing connection and order/leverage/margin actions were not performed."
+  ],
+  "balance_usdc_display": "100.42080600",
+  "available_to_trade_source": "https://app.hyperliquid.xyz/trade",
+  "available_to_trade_observed_at": "2026-09-10T11:38:27Z",
+  "access_status": "read_only_account_visible"
+}

@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-09-10T11:11:14.387603+00:00",
+  "status": "WAIT_EVENT",
+  "decisions": [],
+  "account_status": "verified",
+  "account_snapshot": "journal/account/20260910T110907Z-verified.json",
+  "previous_review_status": "expired_without_zone_retest",
+  "review_expires_at": "2026-09-10T11:20:00Z",
+  "pairs": {
+    "VVV": {
+      "status": "WAIT_EVENT",
+      "report": "reports/analysis/20260910T110907Z-VVV.md",
+      "plan": null,
+      "calculation": null
+    },
+    "HYPE": {
+      "status": "WAIT_EVENT",
+      "report": "reports/analysis/20260910T110907Z-HYPE.md",
+      "plan": null,
+      "calculation": null
+    }
+  }
+}

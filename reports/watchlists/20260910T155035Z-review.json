@@ -1,0 +1,34 @@
+{
+  "status": "reviewed",
+  "observed_at": "2026-09-10T15:53:08.731059+00:00",
+  "source_report": "reports/watchlists/20260910T155035Z.json",
+  "watchlist": [
+    "ETHFI",
+    "TAO",
+    "NEAR",
+    "VVV",
+    "HYPE",
+    "PUMP"
+  ],
+  "reasons": {
+    "ETHFI": "Exceptional 10.16x relative volume; post-impulse consolidation, not continued acceleration.",
+    "TAO": "4.75x relative volume and a 2.29% hourly range with materially better depth.",
+    "NEAR": "1.98% hourly move, 1.44% latest 15m; two-sided usable visible liquidity.",
+    "VVV": "4.02% hourly rebound, but relative volume only 0.64x; secondary priority.",
+    "HYPE": "Liquid venue benchmark; slower recent activity, relative volume 0.75x.",
+    "PUMP": "2.77% hourly range with usable visible depth, but volume 0.50x previous baseline."
+  },
+  "excluded": {
+    "CASHCAT": "Visible 10bp bid/ask depth only $422/$849 despite high range.",
+    "USELESS": "Visible ask depth $744 and 0.51x relative volume.",
+    "PONS": "Volume faded to 0.40x; $3476 bid depth and extended decline reduce priority.",
+    "BTC": "Quiet under configured activity thresholds; retained as market context.",
+    "SOL": "No longer a leading recent activity candidate.",
+    "ZEC": "0.45x relative volume; displaced by fresher ETHFI/TAO/NEAR activity."
+  },
+  "unknown_underlyings": [
+    "para:ANSEM",
+    "io:IONQ"
+  ],
+  "classification_notes": "Paragon products and Entropy architecture checked; exact contract specifications remain unverified. Both unknowns are below the $1m 24h floor at this snapshot. No ticker-only inference applied."
+}

@@ -1,0 +1,93 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F PERP",
+  "columns": [
+    "timeframe",
+    "bar_open_UTC_2026_09_10",
+    "observed_UTC_2026_09_10",
+    "trail_display",
+    "buffer_display",
+    "range_money_flow",
+    "ceiling",
+    "floor",
+    "structure"
+  ],
+  "observations": {
+    "ZEC": [
+      [
+        "1h",
+        "11:00",
+        "12:52:56",
+        1196.75,
+        1212.36,
+        46.93,
+        63.72,
+        48.76,
+        "Completed-hour uptrend lagged the live breakdown of its buffer."
+      ],
+      [
+        "15m",
+        "12:30",
+        "12:53:33",
+        1246.43,
+        1237.85,
+        55.24,
+        56.95,
+        43.59,
+        "Downward structure; completed bar 1213.7/1222.8/1206.3/1213.1. Classic flow above 50 conflicts with selloff."
+      ],
+      [
+        "5m",
+        "12:45",
+        "12:54:20",
+        1223.59,
+        1217.07,
+        44.67,
+        59.88,
+        38.43,
+        "Completed bar 1213.1/1215.0/1169.1/1197.5: sharp sweep and rebound, bearish structure beneath 1205.5; no defended retest."
+      ]
+    ],
+    "ETHFI": [
+      [
+        "1h",
+        "11:00",
+        "12:56:46",
+        0.59,
+        0.61,
+        50.71,
+        54.02,
+        43.66,
+        "Completed-hour rising structure precedes live breakdown; old close is not confirmation of current recovery."
+      ],
+      [
+        "15m",
+        "12:30",
+        "12:57:19",
+        0.62,
+        0.63,
+        50.52,
+        53.62,
+        44.48,
+        "Completed bar .6309/.6397/.6250/.6364 followed by live bearish CHoCH; no sustained reclaim of old .6365 support."
+      ],
+      [
+        "5m",
+        "12:50",
+        "12:58:19",
+        0.64,
+        0.63,
+        43.39,
+        54.81,
+        44.01,
+        "Completed bar .62236/.62748/.61813/.61875; flow below adaptive floor, live downtrend and new lows. Depth impaired."
+      ]
+    ]
+  },
+  "settings_reference": "20260910T115841Z-chart-evidence.json",
+  "limitations": [
+    "Settings not re-opened; trigger width 12 visible, no analyst changes.",
+    "Oscillator legend read from accessibility; wave pane not expanded. No verified fresh entry marker or CVD/taker divergence timestamp.",
+    "ETHFI trail labels rounded; never executable stop prices. Hourly observations precede 13:00 close."
+  ]
+}

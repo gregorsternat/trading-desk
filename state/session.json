@@ -1,21 +1,34 @@
 {
-  "status": "collector_verified_session_review_pending",
-  "observed_at": "2026-09-09T19:06:02+00:00",
-  "expires_at": "2026-09-09T20:06:02.563445+00:00",
-  "collector_report": "reports/watchlists/20260909T190602Z.json",
+  "status": "session_review_complete_partial_coverage",
+  "observed_at": "2026-09-10T15:50:35+00:00",
+  "prepared_at": "2026-09-10T15:53:08.731059+00:00",
+  "session_end": "2026-09-10T18:47:40Z",
+  "expires_at": "2026-09-10T16:50:35.223058+00:00",
   "watchlist": [
-    "FARTCOIN",
+    "ETHFI",
+    "TAO",
+    "NEAR",
     "VVV",
-    "RENDER",
-    "USELESS",
-    "PUMP",
-    "BTC",
     "HYPE",
-    "LTC",
-    "ZEC",
-    "DOGE"
+    "PUMP"
   ],
-  "news_status": "not_checked_setup_verification_only",
+  "coverage": {
+    "active": 36,
+    "below_liquidity_floor": 103,
+    "delisted": 200,
+    "non_crypto": 135,
+    "quiet": 11,
+    "unclassified": 2,
+    "watchable": 30
+  },
   "coverage_complete": false,
-  "note": "This is a collector smoke test, not a completed pre-session skill run. Refresh before use."
+  "unknown_underlyings": [
+    "para:ANSEM",
+    "io:IONQ"
+  ],
+  "report": "reports/watchlists/20260910T155035Z-session.md",
+  "collector_report": "reports/watchlists/20260910T155035Z.json",
+  "review_report": "reports/watchlists/20260910T155035Z-review.json",
+  "news_report": "reports/watchlists/20260910T155035Z-news.json",
+  "analysis_report": "reports/analysis/20260910T160000Z-decisions.json"
 }

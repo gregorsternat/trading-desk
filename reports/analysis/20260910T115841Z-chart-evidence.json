@@ -1,0 +1,209 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F",
+  "contract_type": "PERP",
+  "observed_via": "Native Chrome accessibility and screenshots",
+  "settings": {
+    "price_action": {
+      "internal_structure": "All",
+      "internal_lookback": 5,
+      "swing_structure": "All",
+      "swing_lookback": 50,
+      "pivot_letters": false,
+      "range_extremes": false
+    },
+    "trend_signals": {
+      "trading_style": "None",
+      "entry_logic": "Confirmation + Exits",
+      "trigger_width": 12,
+      "candle_shading": "Confirmation Simple",
+      "grade_by_aggression": true,
+      "tag_new_money_vs_covering": true,
+      "node_window_bars": 200,
+      "node_grid_ticks": 10,
+      "aggression_and_flow_rows": true
+    },
+    "oscillator": {
+      "draw_wave": true,
+      "wave_smoothing": 7,
+      "signal_line_mode": "SMA",
+      "signal_line_span": 3,
+      "mark_wave_turns": true,
+      "draw_taker_money_flow": true,
+      "taker_window": 14,
+      "scan_cvd_divergences": true,
+      "connect_cvd_price_pivots": false,
+      "cvd_anchor": "UTC day"
+    },
+    "scope": "Settings last inspected in this same workspace at 11:05-11:06 UTC; not re-opened during this refresh. No settings changed by the analyst."
+  },
+  "observations": {
+    "USELESS": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T11:49:02Z",
+        "bar_open": "2026-09-10T10:00:00Z",
+        "ohlc_display": [
+          0.238,
+          0.247,
+          0.237,
+          0.244
+        ],
+        "trail_display": 0.27,
+        "buffer_display": 0.26,
+        "flow": null,
+        "ceiling": null,
+        "floor": null,
+        "limitation": "Hourly Range Money Flow unavailable; two issue badges on Price Action and Trend, limited new-listing history. Two-decimal trail values are too coarse for an entry.",
+        "structure": "Recovery from 0.217 below overhead historical zone around 0.26-0.27; hourly trail remains downward."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T11:49:28Z",
+        "bar_open": "2026-09-10T11:15:00Z",
+        "ohlc_display": [
+          0.254,
+          0.256,
+          0.252,
+          0.255
+        ],
+        "trail_display": 0.23,
+        "buffer_display": 0.24,
+        "flow": 60.65,
+        "ceiling": 59.83,
+        "floor": 34.17,
+        "structure": "BOS/CHoCH recovery below overhead 0.26-0.27 zone; Trend limited-history badge. Selected 11:15 bar identified by API OHLC, not claimed to be latest 15m bar."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T11:49:53Z",
+        "bar_open": "2026-09-10T11:40:00Z",
+        "ohlc_display": [
+          0.2558,
+          0.2575,
+          0.2539,
+          0.2568
+        ],
+        "trail_display": 0.24,
+        "buffer_display": 0.25,
+        "flow": 54.72,
+        "ceiling": 61.19,
+        "floor": 40.82,
+        "structure": "Higher short-term structure after 0.2168 low; live uptrend score conflicts with hourly downtrend. Wave near upper region; no verified fresh signal timestamp."
+      }
+    ],
+    "ZEC": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T11:52:00Z",
+        "bar_open": "2026-09-10T10:00:00Z",
+        "ohlc_display": [
+          1222.6,
+          1230.6,
+          1217.4,
+          1219.9
+        ],
+        "trail_display": 1197.31,
+        "buffer_display": 1213.13,
+        "flow": 47.53,
+        "ceiling": 63.8,
+        "floor": 49.22,
+        "structure": "Pullback from 1295.4 within the larger rising regime. Flow below adaptive floor weakens continuation evidence."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T11:52:18Z",
+        "bar_open": "2026-09-10T11:30:00Z",
+        "ohlc_display": [
+          1226.4,
+          1237.2,
+          1226.3,
+          1233.8
+        ],
+        "trail_display": 1245.79,
+        "buffer_display": 1238.38,
+        "flow": 57.02,
+        "ceiling": 56.95,
+        "floor": 43.34,
+        "structure": "Rebound below declining trail; nearby historical supply around 1240-1255. Momentum improves but regime not reclaimed."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T11:52:48Z",
+        "bar_open": "2026-09-10T11:45:00Z",
+        "ohlc_display": [
+          1234,
+          1234.8,
+          1228.1,
+          1230.4
+        ],
+        "trail_display": 1220.01,
+        "buffer_display": 1223.93,
+        "flow": 53.21,
+        "ceiling": 60.71,
+        "floor": 37.92,
+        "structure": "Local recovery above 1220-1224 support band, but latest selected closed bar retraces the push to 1237.2. No completed reclaim/retest of 15m resistance."
+      }
+    ],
+    "ETHFI": [
+      {
+        "timeframe": "1h",
+        "observed_at": "2026-09-10T11:53:49Z",
+        "bar_open": "2026-09-10T10:00:00Z",
+        "ohlc_display": [
+          0.622,
+          0.637,
+          0.621,
+          0.63
+        ],
+        "trail_display": 0.58,
+        "buffer_display": 0.6,
+        "flow": 49.22,
+        "ceiling": 54.04,
+        "floor": 43.62,
+        "structure": "Ascending BOS sequence and higher structure. Live extension to 0.650 after the selected completed hour; rounded trail cannot define an exact stop."
+      },
+      {
+        "timeframe": "15m",
+        "observed_at": "2026-09-10T11:54:09Z",
+        "bar_open": "2026-09-10T11:30:00Z",
+        "ohlc_display": [
+          0.6369,
+          0.65,
+          0.6365,
+          0.6463
+        ],
+        "trail_display": 0.62,
+        "buffer_display": 0.63,
+        "flow": 53.8,
+        "ceiling": 53.66,
+        "floor": 44.33,
+        "structure": "Break above previous highs; most recent impulse already extended to 0.650. Bullish historical block lower, not verified resting liquidity."
+      },
+      {
+        "timeframe": "5m",
+        "observed_at": "2026-09-10T11:54:50Z",
+        "bar_open": "2026-09-10T11:45:00Z",
+        "ohlc_display": [
+          0.6472,
+          0.648,
+          0.6441,
+          0.6448
+        ],
+        "trail_display": 0.63,
+        "buffer_display": 0.64,
+        "flow": 55.82,
+        "ceiling": 55.25,
+        "floor": 43.9,
+        "structure": "BOS continuation followed by first pullback after 0.650. Wave near upper region. No completed support retest at the earlier 0.6365-0.6370 breakout area."
+      }
+    ]
+  },
+  "last_completed_signal_bar": null,
+  "limitations": [
+    "Completed price bars identified above are not asserted to be exact fresh toolkit-entry signal bars. Live Long + scores are developing panel values.",
+    "Actual separate CVD/taker-series numbers and timestamped divergence confirmations were not established; no signed order-flow thesis is inferred from classic Range Money Flow.",
+    "The chart header +0.0100% funding display is not used as hourly funding; API rate 0.0000125 means 0.00125% for the hourly convention.",
+    "Three toolkit observations are correlated price-derived evidence, not independent votes."
+  ]
+}

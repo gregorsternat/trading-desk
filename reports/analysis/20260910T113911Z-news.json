@@ -1,0 +1,25 @@
+{
+  "source_checks": {
+    "bls": "https://www.bls.gov/schedule/2026/09_sched.htm",
+    "ecb": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html",
+    "venue": "https://hyperliquid.statuspage.io/"
+  },
+  "events": [
+    {
+      "name": "ECB decision",
+      "event_at": "2026-09-10T12:15:00Z"
+    },
+    {
+      "name": "US PPI",
+      "event_at": "2026-09-10T12:30:00Z"
+    },
+    {
+      "name": "ECB press conference",
+      "event_at": "2026-09-10T12:45:00Z"
+    }
+  ],
+  "venue_status": "All Systems Operational; no incident reported today",
+  "timezone_note": "ECB local Berlin September time interpreted as CEST despite generic CET calendar label; BLS Eastern time is EDT.",
+  "calendar_observed_at": "2026-09-10T11:07:25Z",
+  "venue_status_observed_at": "2026-09-10T11:36:57Z"
+}

@@ -1,0 +1,176 @@
+{
+  "status": "partial",
+  "account_label": "main",
+  "source": "https://api.hyperliquid.xyz/info",
+  "observed_at": "2026-09-10T02:32:23+00:00",
+  "balances_observed_at": "2026-09-10T02:31:59+00:00",
+  "positions_observed_at": "2026-09-10T02:31:59+00:00",
+  "open_orders_observed_at": "2026-09-10T02:32:21+00:00",
+  "collateral": "USDC",
+  "account_mode": "unified",
+  "equity_usdc": "100.420806",
+  "available_to_trade_usdc": null,
+  "available_method": "Read Available to Trade and account equity from the portfolio; API summaries are not interchangeable across account modes",
+  "balances_verified": false,
+  "positions_verified": true,
+  "open_orders_verified": true,
+  "available_includes_order_reservations": false,
+  "positions": [],
+  "open_orders": [],
+  "committed_risk_usdc": "0",
+  "committed_risk_verified": true,
+  "dex_account_summaries": {
+    "native": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:01+00:00"
+    },
+    "xyz": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:03+00:00"
+    },
+    "flx": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:05+00:00"
+    },
+    "vntl": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:07+00:00"
+    },
+    "hyna": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:09+00:00"
+    },
+    "km": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:11+00:00"
+    },
+    "abcd": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:13+00:00"
+    },
+    "cash": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:15+00:00"
+    },
+    "para": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:17+00:00"
+    },
+    "mkts": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:19+00:00"
+    },
+    "io": {
+      "margin_summary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "withdrawable": "0.0",
+      "observed_at": "2026-09-10T02:32:21+00:00"
+    }
+  },
+  "spot_balances": [
+    {
+      "coin": "USDC",
+      "token": 0,
+      "total": "100.420806",
+      "hold": "0.0",
+      "entryNtl": "0.0"
+    },
+    {
+      "coin": "USDE",
+      "token": 235,
+      "total": "0.0",
+      "hold": "0.0",
+      "entryNtl": "0.0"
+    },
+    {
+      "coin": "USDT0",
+      "token": 268,
+      "total": "0.0",
+      "hold": "0.0",
+      "entryNtl": "0.0"
+    },
+    {
+      "coin": "USDH",
+      "token": 360,
+      "total": "0.0",
+      "hold": "0.0",
+      "entryNtl": "0.0"
+    }
+  ],
+  "fees": {
+    "userCrossRate": "0.00045",
+    "userAddRate": "0.00015",
+    "activeReferralDiscount": "0.0"
+  },
+  "errors": [],
+  "browser_crosscheck": "pending",
+  "equity_method": "Observed USDC spot balance in unified account; all other returned balances zero and no positions across all 11 DEXs. Official perpetual account endpoint directs unified accounts to spot balances.",
+  "equity_scope": "Unified account USDC balance at observation; flat account, other returned tokens zero.",
+  "notes": [
+    "Equity is supported by API balance and flat exposure observations. Available to Trade remains unverified pending portfolio cross-check; status stays partial."
+  ]
+}

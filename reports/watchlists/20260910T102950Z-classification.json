@@ -1,0 +1,59 @@
+{
+  "observed_at": "2026-09-10T10:33:37.316434+00:00",
+  "collector_report": "reports/watchlists/20260910T102950Z.json",
+  "resolved": {
+    "xyz:SKHX": {
+      "asset_class": "non_crypto",
+      "reason": "Tracks one SK hynix common share, with KRW converted to USD; equity underlying.",
+      "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+      "verified_date": "2026-09-10"
+    },
+    "xyz:CL": {
+      "asset_class": "non_crypto",
+      "reason": "Tracks one barrel of West Texas Intermediate light sweet crude oil; commodity underlying.",
+      "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+      "verified_date": "2026-09-10"
+    },
+    "xyz:SMSN": {
+      "asset_class": "non_crypto",
+      "reason": "Tracks one Samsung Electronics common share, with KRW converted to USD; equity underlying.",
+      "source": "https://docs.trade.xyz/consolidated-resources/specification-index",
+      "verified_date": "2026-09-10"
+    }
+  },
+  "remaining_unclassified": [
+    "para:ANSEM",
+    "mkts:US500",
+    "mkts:USBOND",
+    "mkts:SMALL2000",
+    "mkts:USTECH",
+    "io:OAI",
+    "io:ANTH",
+    "io:SNDK",
+    "io:NBIS",
+    "io:GPRO"
+  ],
+  "coverage_after_review": {
+    "active": 35,
+    "below_liquidity_floor": 100,
+    "delisted": 201,
+    "non_crypto": 126,
+    "quiet": 15,
+    "unclassified": 10,
+    "watchable": 29,
+    "wide_spread": 1
+  },
+  "eligibility_changed": false,
+  "rescan_reason": "No crypto eligibility changes: the three previously excluded unknown contracts are confirmed non-crypto. Collector evidence is retained unchanged.",
+  "plausible_crypto_gap": {
+    "coin": "para:ANSEM",
+    "volume_24h_usd": 823978.0567600004,
+    "status": "underlying_unverified",
+    "reason": "Paragon analytics lists ANSEM, but the product directory does not specify its underlying. Official X retrieval failed (403). Same-ticker token and third-party announcement mirrors are insufficient. Also below the current 1M USD liquidity floor.",
+    "sources_checked": [
+      "https://paragon.trade/products/",
+      "https://stats.paragon.trade/",
+      "https://x.com/tradeparagon"
+    ]
+  }
+}

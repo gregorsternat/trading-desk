@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-09-10T13:02:03.622413+00:00",
+  "decision_list": [],
+  "statuses": {
+    "ETHFI": "NO_TRADE",
+    "ZEC": "NO_TRADE"
+  },
+  "expires_at": "2026-09-10T13:12:03.622413+00:00",
+  "reports": [
+    "reports/analysis/20260910T130203Z-ETHFI.md",
+    "reports/analysis/20260910T130203Z-ZEC.md"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "status": "checked",
+  "observed_at": "2026-09-10T11:51:39.694048+00:00",
+  "events": [
+    {
+      "name": "ECB policy decision",
+      "event_at": "2026-09-10T12:15:00Z",
+      "source": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html",
+      "impact": "Potential cross-asset volatility; no directional inference"
+    },
+    {
+      "name": "US August PPI",
+      "event_at": "2026-09-10T12:30:00Z",
+      "source": "https://www.bls.gov/schedule/2026/09_sched.htm",
+      "impact": "Potential USD, rates and crypto volatility"
+    },
+    {
+      "name": "ECB press conference",
+      "event_at": "2026-09-10T12:45:00Z",
+      "source": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html",
+      "impact": "Potential continued cross-asset volatility"
+    }
+  ],
+  "checked_sources": [
+    "https://hyperliquid.statuspage.io/",
+    "https://t.me/s/hyperliquid_announcements",
+    "https://ether.fi/blog",
+    "https://forum.zcashcommunity.com/c/ecosystem-updates/31"
+  ],
+  "findings": [
+    "Venue operational on the checked status page.",
+    "USELESS and PONS listings confirmed in venue announcements; exact publication date not verified here, so neither is represented as a new event today.",
+    "No additional timed pair-specific catalyst established for this session.",
+    "ECB September Berlin times converted using summer time; BLS Eastern using EDT."
+  ]
+}

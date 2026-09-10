@@ -1,0 +1,106 @@
+{
+  "status": "checked",
+  "observed_at": "2026-09-10T10:33:37.316434+00:00",
+  "session_start": "2026-09-10T10:26:51Z",
+  "session_end": "2026-09-10T13:26:51Z",
+  "events": [
+    {
+      "name": "ECB monetary policy decision",
+      "event_at": "2026-09-10T12:15:00Z",
+      "source": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html",
+      "source_updated_at": "2026-09-10T09:10:00Z",
+      "scheduled_local": "14:15 Europe/Berlin (CEST, UTC+02:00)",
+      "impact": "Possible cross-asset volatility and liquidity changes; no directional inference."
+    },
+    {
+      "name": "US August Producer Price Index",
+      "event_at": "2026-09-10T12:30:00Z",
+      "source": "https://www.bls.gov/schedule/2026/09_sched.htm",
+      "source_updated_at": null,
+      "source_updated_date": "2026-02-18",
+      "scheduled_local": "08:30 America/New_York (EDT, UTC-04:00)",
+      "impact": "Inflation release may change rates expectations and crypto volatility; outcome unknown."
+    },
+    {
+      "name": "US weekly unemployment insurance claims",
+      "event_at": "2026-09-10T12:30:00Z",
+      "source": "https://oui.doleta.gov/unemploy/claims_arch.asp/claims.asp",
+      "source_updated_at": null,
+      "scheduled_local": "08:30 America/New_York (EDT, UTC-04:00)",
+      "timing_status": "Expected from the official Thursday publication schedule; the latest available PDF is dated September 3, not September 10.",
+      "impact": "Potential additional labor-market volatility alongside PPI; no current release values claimed."
+    },
+    {
+      "name": "ECB press conference",
+      "event_at": "2026-09-10T12:45:00Z",
+      "source": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html",
+      "source_updated_at": "2026-09-10T09:10:00Z",
+      "scheduled_local": "14:45 Europe/Berlin (CEST, UTC+02:00)",
+      "impact": "Comments can extend the volatility window following the policy decision."
+    }
+  ],
+  "crypto_venue_events": [],
+  "sources_checked": [
+    {
+      "url": "https://www.bls.gov/schedule/2026/09_sched.htm",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "PPI is scheduled today. CPI is outside this session."
+    },
+    {
+      "url": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "Today's decision and press conference; generic CET label interpreted as Berlin civil time in September (CEST)."
+    },
+    {
+      "url": "https://oui.doleta.gov/unemploy/claims_arch.asp/claims.asp",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "Weekly Thursday 08:30 schedule; latest release checked separately."
+    },
+    {
+      "url": "https://www.dol.gov/ui/data.pdf",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "Latest retrieved publication is September 3; no September 10 figures inferred."
+    },
+    {
+      "url": "https://hyperliquid.statuspage.io/",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "Frontend, L1 and API operational; no incident reported today."
+    },
+    {
+      "url": "https://blog.ethereum.org/",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "September 9 post concerns a September 16 AMA, outside this session."
+    },
+    {
+      "url": "https://venice.ai/blog",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "No supported catalyst timed within this session in retrieved material."
+    },
+    {
+      "url": "https://electriccoin.co/blog/",
+      "status": "checked",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "Retrieved index contains older posts; does not establish absence of recent Zcash news."
+    },
+    {
+      "url": "https://x.com/tradeparagon",
+      "status": "unavailable",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "HTTP 403; used for contract verification, not a catalyst."
+    },
+    {
+      "url": "https://status.hyperliquid.xyz",
+      "status": "unavailable",
+      "checked_at": "2026-09-10T10:33:37.316434+00:00",
+      "finding": "Initial URL failed; official statuspage.io fallback succeeded."
+    }
+  ],
+  "limitations": "Bounded public-source review, not an exhaustive news feed. No verified session-specific crypto catalyst found; old project indexes and inaccessible social content limit coverage. Publication timestamps remain null when not exposed."
+}

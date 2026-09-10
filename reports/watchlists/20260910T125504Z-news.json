@@ -1,0 +1,33 @@
+{
+  "status": "checked",
+  "observed_at": "2026-09-10T13:02:03.622413+00:00",
+  "events": [
+    {
+      "name": "US August PPI",
+      "published_at": "2026-09-10T12:30:00Z",
+      "headline_monthly_pct": 0.4,
+      "headline_annual_pct": 5.4,
+      "excluding_food_energy_trade_monthly_pct": 0.3,
+      "source": "https://www.bls.gov/news.release/ppi.nr0.htm",
+      "interpretation": "Release now verified; no verified consensus comparison or causal attribution of particular candles."
+    },
+    {
+      "name": "ECB policy decision",
+      "published_at": "2026-09-10T12:15:00Z",
+      "change_bps": 25,
+      "deposit_rate_pct": 2.5,
+      "effective_date": "2026-09-16",
+      "source": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp260910~314e508016.en.html"
+    },
+    {
+      "name": "ECB press conference",
+      "event_at": "2026-09-10T12:45:00Z",
+      "source": "https://www.ecb.europa.eu/press/press_conference/html/index.en.html",
+      "remarks": null,
+      "reason": "Schedule verified; live remarks not transcribed or inferred."
+    }
+  ],
+  "venue_status": "Operational, no incident today",
+  "venue_source": "https://hyperliquid.statuspage.io/",
+  "pair_news": "No newly verified pair-specific catalyst; the dated earlier project-source check is retained."
+}

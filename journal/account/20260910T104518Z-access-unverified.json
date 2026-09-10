@@ -1,0 +1,30 @@
+{
+  "status": "unverified",
+  "account_label": "main",
+  "source": "https://app.hyperliquid.xyz/portfolio",
+  "observed_at": "2026-09-10T10:47:47.859330+00:00",
+  "balances_observed_at": null,
+  "positions_observed_at": null,
+  "open_orders_observed_at": null,
+  "account_mode": null,
+  "collateral": null,
+  "equity_usdc": null,
+  "available_to_trade_usdc": null,
+  "balances_verified": false,
+  "positions_verified": false,
+  "open_orders_verified": false,
+  "available_includes_order_reservations": false,
+  "positions": null,
+  "open_orders": null,
+  "committed_risk_usdc": null,
+  "committed_risk_verified": false,
+  "notes": [
+    "Chrome portfolio still displayed Connect after reload. Balances, Positions and Open Orders were inspected as unauthenticated placeholders; their zero/empty displays are not account evidence.",
+    "Current equity, available collateral, account mode, exposures, reservations and committed risk are unknown.",
+    "Previous partial API observation is preserved in journal/account/20260910T104518Z-prior-state.json. No public address was provided in this analysis request; no filesystem address lookup or account API call was performed."
+  ],
+  "access_checked_at": "2026-09-10T10:45:16Z",
+  "account_identity_verified": false,
+  "access_status": "not_connected",
+  "previous_observation_path": "journal/account/20260910T104518Z-prior-state.json"
+}

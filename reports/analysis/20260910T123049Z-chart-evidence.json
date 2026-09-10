@@ -1,0 +1,120 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F PERP",
+  "observations": {
+    "ETHFI": [
+      {
+        "timeframe": "1h",
+        "bar_open": "2026-09-10T11:00:00Z",
+        "observed_at": "2026-09-10T12:19:37Z",
+        "ohlc": [
+          0.63,
+          0.65,
+          0.624,
+          0.642
+        ],
+        "trail_display": 0.59,
+        "buffer_display": 0.61,
+        "flow": 50.71,
+        "ceiling": 54.02,
+        "floor": 43.66,
+        "structure": "Hourly ascending structure survives, but the live impulse retraced."
+      },
+      {
+        "timeframe": "15m",
+        "bar_open": "2026-09-10T12:00:00Z",
+        "observed_at": "2026-09-10T12:20:35Z",
+        "ohlc": [
+          0.6413,
+          0.6452,
+          0.632,
+          0.6338
+        ],
+        "trail_display": 0.62,
+        "buffer_display": 0.63,
+        "flow": 52.57,
+        "ceiling": 53.65,
+        "floor": 44.42,
+        "structure": "Sharp return under 0.6365-0.6370; prior continuation support not defended."
+      },
+      {
+        "timeframe": "5m",
+        "bar_open": "2026-09-10T12:15:00Z",
+        "observed_at": "2026-09-10T12:21:55Z",
+        "ohlc": [
+          0.63311,
+          0.63354,
+          0.6297,
+          0.63081
+        ],
+        "trail_display": 0.65,
+        "buffer_display": 0.64,
+        "flow": 47.93,
+        "ceiling": 55.16,
+        "floor": 44.13,
+        "structure": "Downward trail flip and live Short 2/4 longs unwinding; not treated as a verified fresh entry timestamp."
+      }
+    ],
+    "ZEC": [
+      {
+        "timeframe": "1h",
+        "bar_open": "2026-09-10T11:00:00Z",
+        "observed_at": "2026-09-10T12:24:44Z",
+        "ohlc": [
+          1219.6,
+          1237.2,
+          1217.1,
+          1221.1
+        ],
+        "trail_display": 1196.75,
+        "buffer_display": 1212.36,
+        "flow": 46.93,
+        "ceiling": 63.72,
+        "floor": 48.76,
+        "structure": "Hourly uptrend weakened at buffer; flow below adaptive floor."
+      },
+      {
+        "timeframe": "15m",
+        "bar_open": "2026-09-10T12:00:00Z",
+        "observed_at": "2026-09-10T12:25:55Z",
+        "ohlc": [
+          1221,
+          1222.8,
+          1209.8,
+          1212
+        ],
+        "trail_display": 1247.59,
+        "buffer_display": 1238.69,
+        "flow": 56.29,
+        "ceiling": 56.97,
+        "floor": 43.47,
+        "structure": "Lower structure and declining trend below resistance, despite lagging classic flow above 50."
+      },
+      {
+        "timeframe": "5m",
+        "bar_open": "2026-09-10T12:20:00Z",
+        "observed_at": "2026-09-10T12:28:12Z",
+        "ohlc": [
+          1212.2,
+          1213.7,
+          1212.2,
+          1213.3
+        ],
+        "trail_display": 1228.86,
+        "buffer_display": 1224.66,
+        "flow": 44.34,
+        "ceiling": 60.26,
+        "floor": 38.26,
+        "structure": "Bearish CHoCH after failure of 1220; price close to prior 1205.5 low, so a new short would chase into nearby support."
+      }
+    ]
+  },
+  "settings_reference": "20260910T115841Z-chart-evidence.json",
+  "settings_status": "Prior settings not reverified; trigger width 12 visible, no analyst changes. Pane layout changed; oscillator legend available via accessibility but wave pane not visibly expanded.",
+  "last_completed_entry_signal_bar": null,
+  "limitations": [
+    "Closed price bars above are not exact toolkit entry signal timestamps.",
+    "No current verified CVD/taker divergence or numeric signed-flow series. Classic flow is price derived.",
+    "Rounded ETHFI trail labels are not exact executable levels."
+  ]
+}

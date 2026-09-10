@@ -1,0 +1,19 @@
+{
+  "observed_at": "2026-09-10T11:58:41.899402+00:00",
+  "decision_list": [],
+  "statuses": {
+    "USELESS": "DATA_BLOCKED",
+    "ZEC": "WAIT_EVENT",
+    "ETHFI": "WAIT_EVENT"
+  },
+  "priority": [
+    "ETHFI",
+    "ZEC"
+  ],
+  "expires_at": "2026-09-10T12:05:00Z",
+  "reports": {
+    "USELESS": "reports/analysis/20260910T115841Z-USELESS.md",
+    "ZEC": "reports/analysis/20260910T115841Z-ZEC.md",
+    "ETHFI": "reports/analysis/20260910T115841Z-ETHFI.md"
+  }
+}

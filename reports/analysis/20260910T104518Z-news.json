@@ -1,0 +1,26 @@
+{
+  "status": "checked",
+  "observed_at": "2026-09-10T10:43:15Z",
+  "events": [
+    {
+      "name": "ECB decision",
+      "event_at": "2026-09-10T12:15:00Z",
+      "source": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html"
+    },
+    {
+      "name": "US PPI",
+      "event_at": "2026-09-10T12:30:00Z",
+      "source": "https://www.bls.gov/schedule/2026/09_sched.htm"
+    },
+    {
+      "name": "ECB press conference",
+      "event_at": "2026-09-10T12:45:00Z",
+      "source": "https://www.ecb.europa.eu/press/calendars/weekly/html/index.en.html"
+    }
+  ],
+  "venue_status": "Official status page reports operational services; no session-specific maintenance found.",
+  "venue_source": "https://hyperliquid.statuspage.io/",
+  "prior_crypto_news_review": "../watchlists/20260910T102950Z-news.json",
+  "funding_semantics_source": "https://hyperliquid.gitbook.io/hyperliquid-docs/trading/funding",
+  "funding_note": "Use API hourly rate. OpenMarket shows a longer normalization/countdown; its 0.0100% label must not be charged each hour."
+}

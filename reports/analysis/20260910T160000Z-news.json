@@ -1,0 +1,57 @@
+{
+  "status": "checked",
+  "observed_at": "2026-09-10T15:55:36.047788+00:00",
+  "events": [
+    {
+      "name": "Virtual NEAR Day",
+      "event_at": "2026-09-10T15:00:00Z",
+      "event_end": "2026-09-10T18:00:00Z",
+      "published_at": null,
+      "publication_note": "Partner post reported September 9 by search; exact publication timestamp not verified.",
+      "source": "https://t.me/s/thorswap_ann",
+      "organizer_source": "https://x.com/NEARProtocol/status/2097472783433253346",
+      "verification": "Participating project THORSwap directly confirms event date and 11am\u20132pm ET schedule; organizer X fetch blocked.",
+      "session_relevance": "Ongoing ecosystem stream overlaps session; possible headline volatility, no specific announcement or directional impact inferred."
+    }
+  ],
+  "checked_sources": [
+    {
+      "url": "https://www.bls.gov/schedule/2026/09_sched.htm",
+      "result": "PPI at 12:30 UTC already released; CPI September 11 12:30 UTC outside this 3h session."
+    },
+    {
+      "url": "https://www.bls.gov/news.release/ppi.nr0.htm",
+      "result": "August headline PPI +0.4% monthly, +5.4% yearly; earlier-session context, no consensus surprise or direct price causality established."
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/calendar.htm",
+      "result": "No high-impact release identified in 15:47\u201318:47 UTC session; routine commercial-paper release is not a directional catalyst."
+    },
+    {
+      "url": "https://hyperliquid.statuspage.io/",
+      "result": "All systems operational, no incident reported September 10."
+    },
+    {
+      "url": "https://ether.fi/blog",
+      "result": "Search checked; no verified catalyst within session."
+    },
+    {
+      "url": "https://www.bittensor.com/",
+      "result": "Search checked; no verified catalyst within session."
+    },
+    {
+      "url": "https://www.near.org/blog",
+      "result": "Blog list extraction unavailable; participating project THORSwap announcement independently read."
+    }
+  ],
+  "retrieval_gaps": [
+    {
+      "url": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp260910~314e508016.en.html",
+      "reason": "Current retrieval failed; old reported decision not reused as verified."
+    },
+    {
+      "url": "https://x.com/NEARProtocol/status/2097472783433253346",
+      "reason": "403; NEAR Day 15:00\u201318:00 UTC reported by secondary source, not yet primary-verified."
+    }
+  ]
+}

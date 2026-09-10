@@ -1,0 +1,36 @@
+{
+  "status": "checked",
+  "observed_at": "2026-09-10T12:25:46.061173+00:00",
+  "events": [
+    {
+      "name": "ECB raised all three policy rates 25 basis points",
+      "published_at": "2026-09-10T12:15:00Z",
+      "effective_date": "2026-09-16",
+      "deposit_rate_pct": 2.5,
+      "source": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp260910~314e508016.en.html",
+      "retrieval": "Official RSS and direct public HTML; web search cache had not yet indexed release.",
+      "inference": "Potential rates/USD/crypto volatility; no causal attribution to individual candles."
+    },
+    {
+      "name": "US August PPI",
+      "event_at": "2026-09-10T12:30:00Z",
+      "source": "https://www.bls.gov/schedule/2026/09_sched.htm"
+    },
+    {
+      "name": "ECB press conference",
+      "event_at": "2026-09-10T12:45:00Z",
+      "source": "https://www.ecb.europa.eu/press/press_conference/html/index.en.html"
+    }
+  ],
+  "checked_sources": [
+    "https://hyperliquid.statuspage.io/",
+    "https://www.ecb.europa.eu/rss/press.html"
+  ],
+  "crypto_venue": "Venue operational, no new incident. Pair-specific news review from 11:50 UTC retained; no newly verified timed project event.",
+  "post_release_check": {
+    "observed_at": "2026-09-10T12:31:40.841555+00:00",
+    "source": "https://www.bls.gov/news.release/ppi.nr0.htm",
+    "result": null,
+    "reason": "Web tool still returned July report published August 13; direct official HTTP request returned 403. August result remains unverified."
+  }
+}
