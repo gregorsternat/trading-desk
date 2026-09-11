@@ -1,0 +1,193 @@
+{
+  "status": "review_complete_partial_coverage",
+  "observed_at": "2026-09-10T19:21:44.877Z",
+  "source": "https://api.hyperliquid.xyz/info",
+  "collector_report": "reports/watchlists/20260910T191518Z.json",
+  "coverage": {
+    "total_contracts": 518,
+    "dexs_requested": 11,
+    "candle_candidates": 77,
+    "dex_errors": [],
+    "statuses": {
+      "active": 23,
+      "below_liquidity_floor": 103,
+      "delisted": 201,
+      "non_crypto": 135,
+      "quiet": 24,
+      "unclassified": 2,
+      "watchable": 29,
+      "wide_spread": 1
+    },
+    "coverage_complete": false,
+    "unknown_underlyings": [
+      "para:ANSEM",
+      "io:IONQ"
+    ]
+  },
+  "classification_review": [
+    {
+      "coin": "para:ANSEM",
+      "result": "unresolved",
+      "reason": "Paragon's official analytics confirms the market exists, but its official product directory does not specify the underlying. Indexed secondary copies of an owner announcement were not used as final contract verification. The contract was below the configured 1M USD 24h liquidity floor at collection time.",
+      "sources_checked": [
+        "https://paragon.trade/products/",
+        "https://stats.paragon.trade/",
+        "https://x.com/tradeparagon"
+      ]
+    },
+    {
+      "coin": "io:IONQ",
+      "result": "unresolved",
+      "reason": "The newly inventoried exact contract is not yet present in Entropy's official equity, pre-IPO or index asset directories. A same-ticker issuer match is insufficient. The contract was below the configured 1M USD 24h liquidity floor at collection time.",
+      "sources_checked": [
+        "https://docs.entropy.io/asset-directory/equity-assets.md",
+        "https://docs.entropy.io/asset-directory/pre-ipo-assets.md",
+        "https://docs.entropy.io/asset-directory/index-assets.md"
+      ]
+    }
+  ],
+  "watchlist": [
+    {
+      "coin": "ZEC",
+      "dex": "native",
+      "activity": {
+        "closed_through": "2026-09-10T19:19:59.999Z",
+        "return_15m_pct": -0.1857,
+        "return_1h_pct": 0.0266,
+        "range_1h_pct": 2.4006,
+        "atr14_5m_pct": 0.7536,
+        "volume_1h_usd_approx": 48968093.64,
+        "relative_volume_1h": 2.1930,
+        "largest_5m_volume_share_of_1h": 0.1508
+      },
+      "book": {
+        "observed_at": "2026-09-10T19:21:32.222Z",
+        "spread_bps": 0.8867,
+        "bid_depth_10bps_usd": 91919.83,
+        "ask_depth_10bps_usd": 698847.83
+      }
+    },
+    {
+      "coin": "LIT",
+      "dex": "native",
+      "activity": {
+        "closed_through": "2026-09-10T19:19:59.999Z",
+        "return_15m_pct": 0.7096,
+        "return_1h_pct": 3.2191,
+        "range_1h_pct": 4.1502,
+        "atr14_5m_pct": 0.7124,
+        "volume_1h_usd_approx": 2331610.34,
+        "relative_volume_1h": 0.8228,
+        "largest_5m_volume_share_of_1h": 0.2241
+      },
+      "book": {
+        "observed_at": "2026-09-10T19:21:34.902Z",
+        "spread_bps": 0.6639,
+        "bid_depth_10bps_usd": 15303.87,
+        "ask_depth_10bps_usd": 48341.06
+      }
+    },
+    {
+      "coin": "HYPE",
+      "dex": "native",
+      "activity": {
+        "closed_through": "2026-09-10T19:19:59.999Z",
+        "return_15m_pct": -0.3130,
+        "return_1h_pct": 0.7432,
+        "range_1h_pct": 1.6785,
+        "atr14_5m_pct": 0.3879,
+        "volume_1h_usd_approx": 24708608.58,
+        "relative_volume_1h": 0.8507,
+        "largest_5m_volume_share_of_1h": 0.2037
+      },
+      "book": {
+        "observed_at": "2026-09-10T19:21:37.127Z",
+        "spread_bps": 0.1246,
+        "bid_depth_10bps_usd": 113523.26,
+        "ask_depth_10bps_usd": 74527.99
+      }
+    },
+    {
+      "coin": "PUMP",
+      "dex": "native",
+      "activity": {
+        "closed_through": "2026-09-10T19:19:59.999Z",
+        "return_15m_pct": -0.0512,
+        "return_1h_pct": 2.8451,
+        "range_1h_pct": 3.6117,
+        "atr14_5m_pct": 0.7345,
+        "volume_1h_usd_approx": 5871910.17,
+        "relative_volume_1h": 0.7896,
+        "largest_5m_volume_share_of_1h": 0.3478
+      },
+      "book": {
+        "observed_at": "2026-09-10T19:21:44.641Z",
+        "spread_bps": 2.5677,
+        "bid_depth_10bps_usd": 21213.55,
+        "ask_depth_10bps_usd": 41906.64
+      }
+    },
+    {
+      "coin": "XMR",
+      "dex": "native",
+      "activity": {
+        "closed_through": "2026-09-10T19:19:59.999Z",
+        "return_15m_pct": -0.1699,
+        "return_1h_pct": 1.1899,
+        "range_1h_pct": 1.5376,
+        "atr14_5m_pct": 0.3039,
+        "volume_1h_usd_approx": 874332.01,
+        "relative_volume_1h": 1.1652,
+        "largest_5m_volume_share_of_1h": 0.4293
+      },
+      "book": {
+        "observed_at": "2026-09-10T19:21:41.971Z",
+        "spread_bps": 0.1935,
+        "bid_depth_10bps_usd": 26539.29,
+        "ask_depth_10bps_usd": 23485.17
+      }
+    },
+    {
+      "coin": "SOL",
+      "dex": "native",
+      "activity": {
+        "closed_through": "2026-09-10T19:19:59.999Z",
+        "return_15m_pct": 0.0010,
+        "return_1h_pct": 0.4977,
+        "range_1h_pct": 0.6907,
+        "atr14_5m_pct": 0.2073,
+        "volume_1h_usd_approx": 7887697.70,
+        "relative_volume_1h": 0.7854,
+        "largest_5m_volume_share_of_1h": 0.3584
+      },
+      "book": {
+        "observed_at": "2026-09-10T19:21:39.822Z",
+        "spread_bps": 0.1002,
+        "bid_depth_10bps_usd": 170582.58,
+        "ask_depth_10bps_usd": 910770.42
+      }
+    }
+  ],
+  "excluded_top_ranked": [
+    {
+      "coin": "CHIP",
+      "reason": "One large impulse followed by cooling; refreshed review showed only about 5% of hourly volume in the latest 15 minutes and shallow visible depth."
+    },
+    {
+      "coin": "VVV",
+      "reason": "Large hourly range but visible bid depth inside 10 bps was under 500 USD at collection time."
+    },
+    {
+      "coin": "PONS",
+      "reason": "Price finished near the hourly low while relative volume was below 1x and visible depth remained modest."
+    },
+    {
+      "coin": "NEAR",
+      "reason": "A single 5m candle contributed about 52% of hourly notional and the last close returned near the hourly low."
+    },
+    {
+      "coin": "SKR",
+      "reason": "A single 5m candle contributed about 68% of hourly notional, recent participation collapsed and visible depth was near 2k USD per side."
+    }
+  ]
+}

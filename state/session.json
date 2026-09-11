@@ -1,34 +1,36 @@
 {
   "status": "session_review_complete_partial_coverage",
-  "observed_at": "2026-09-10T15:50:35+00:00",
-  "prepared_at": "2026-09-10T15:53:08.731059+00:00",
-  "session_end": "2026-09-10T18:47:40Z",
-  "expires_at": "2026-09-10T16:50:35.223058+00:00",
+  "observed_at": "2026-09-10T19:21:44.877Z",
+  "prepared_at": "2026-09-10T19:22:30Z",
+  "session_end": "2026-09-10T22:21:50Z",
+  "expires_at": "2026-09-10T20:21:44.877Z",
+  "display_timezone": "Asia/Shanghai",
   "watchlist": [
-    "ETHFI",
-    "TAO",
-    "NEAR",
-    "VVV",
+    "ZEC",
+    "LIT",
     "HYPE",
-    "PUMP"
+    "PUMP",
+    "XMR",
+    "SOL"
   ],
   "coverage": {
-    "active": 36,
+    "active": 23,
     "below_liquidity_floor": 103,
-    "delisted": 200,
+    "delisted": 201,
     "non_crypto": 135,
-    "quiet": 11,
+    "quiet": 24,
     "unclassified": 2,
-    "watchable": 30
+    "watchable": 29,
+    "wide_spread": 1
   },
   "coverage_complete": false,
   "unknown_underlyings": [
     "para:ANSEM",
     "io:IONQ"
   ],
-  "report": "reports/watchlists/20260910T155035Z-session.md",
-  "collector_report": "reports/watchlists/20260910T155035Z.json",
-  "review_report": "reports/watchlists/20260910T155035Z-review.json",
-  "news_report": "reports/watchlists/20260910T155035Z-news.json",
-  "analysis_report": "reports/analysis/20260910T160000Z-decisions.json"
+  "report": "reports/watchlists/20260910T192150Z-session.md",
+  "collector_report": "reports/watchlists/20260910T191518Z.json",
+  "collector_markdown": "reports/watchlists/20260910T191518Z.md",
+  "review_report": "reports/watchlists/20260910T192150Z-review.json",
+  "news_report": "reports/watchlists/20260910T192150Z-news.json"
 }

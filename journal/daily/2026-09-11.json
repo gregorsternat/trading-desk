@@ -1,103 +1,8 @@
 {
-  "schema_version": 1,
-  "account_label": "main",
+  "date": "2026-09-11",
+  "timezone": "Asia/Shanghai",
+  "generated_at": "2026-09-11T06:17:04+00:00",
   "fills": [
-    {
-      "id": "INJ:886064976583075",
-      "coin": "INJ",
-      "time": 1788962996010,
-      "side": "A",
-      "direction": "Open Short",
-      "price": "6.123",
-      "size": "88.8",
-      "closed_pnl": "0.0",
-      "fee": "0.244675",
-      "fee_token": "USDC",
-      "start_position": "0.0",
-      "order_id": "540324602871",
-      "market_type": "perp",
-      "pnl_token": "USDC"
-    },
-    {
-      "id": "INJ:328999698496863",
-      "coin": "INJ",
-      "time": 1788967488422,
-      "side": "B",
-      "direction": "Close Short",
-      "price": "6.0187",
-      "size": "44.5",
-      "closed_pnl": "4.64135",
-      "fee": "0.120524",
-      "fee_token": "USDC",
-      "start_position": "-44.5",
-      "order_id": "540404259031",
-      "market_type": "perp",
-      "pnl_token": "USDC"
-    },
-    {
-      "id": "INJ:559074422274059",
-      "coin": "INJ",
-      "time": 1788967488422,
-      "side": "B",
-      "direction": "Close Short",
-      "price": "6.0184",
-      "size": "12.0",
-      "closed_pnl": "1.2552",
-      "fee": "0.032499",
-      "fee_token": "USDC",
-      "start_position": "-56.5",
-      "order_id": "540404259031",
-      "market_type": "perp",
-      "pnl_token": "USDC"
-    },
-    {
-      "id": "INJ:737496468180651",
-      "coin": "INJ",
-      "time": 1788967488422,
-      "side": "B",
-      "direction": "Close Short",
-      "price": "6.0168",
-      "size": "32.3",
-      "closed_pnl": "3.43026",
-      "fee": "0.087454",
-      "fee_token": "USDC",
-      "start_position": "-88.8",
-      "order_id": "540404259031",
-      "market_type": "perp",
-      "pnl_token": "USDC"
-    },
-    {
-      "id": "PUMP:330753595055213",
-      "coin": "PUMP",
-      "time": 1788974161898,
-      "side": "B",
-      "direction": "Open Long",
-      "price": "0.004752",
-      "size": "247293.0",
-      "closed_pnl": "0.0",
-      "fee": "0.17627",
-      "fee_token": "USDC",
-      "start_position": "0.0",
-      "order_id": "540480930638",
-      "market_type": "perp",
-      "pnl_token": "USDC"
-    },
-    {
-      "id": "PUMP:784855247233687",
-      "coin": "PUMP",
-      "time": 1788975273682,
-      "side": "A",
-      "direction": "Close Long",
-      "price": "0.004685",
-      "size": "247293.0",
-      "closed_pnl": "-16.568631",
-      "fee": "0.521355",
-      "fee_token": "USDC",
-      "start_position": "247293.0",
-      "order_id": "540492117909",
-      "market_type": "perp",
-      "pnl_token": "USDC"
-    },
     {
       "id": "TAO:286197809323720",
       "coin": "TAO",
@@ -323,73 +228,56 @@
       "pnl_token": "USDC"
     }
   ],
-  "funding": [
-    {
-      "coin": "INJ",
-      "time": 1788966000054,
-      "usdc": "0.015404",
-      "id": "6957885d990f6acfee71c6da"
-    },
+  "closed_episodes": [
     {
       "coin": "TAO",
-      "time": 1789059600001,
-      "usdc": "-0.006364",
-      "id": "b073e310e2072be687433de9"
+      "opened_ms": 1789058111557,
+      "status": "closed",
+      "fill_ids": [
+        "TAO:286197809323720",
+        "TAO:414314407017759",
+        "TAO:644422314860402",
+        "TAO:1067383220171227"
+      ],
+      "closed_pnl": "13.20625",
+      "fees_usdc": "0.495949",
+      "fee_currency_complete": true,
+      "end_position": "0.000",
+      "closed_ms": 1789062864877,
+      "net_before_funding_usdc": "12.710301",
+      "holding_minutes": 79.222
     },
     {
       "coin": "XMR",
-      "time": 1789070400028,
-      "usdc": "0.006897",
-      "id": "3044d77b910b666c96ff2e6b"
-    },
-    {
-      "coin": "XMR",
-      "time": 1789074000110,
-      "usdc": "0.008017",
-      "id": "664258b443a5a4115bc2a67b"
-    },
-    {
-      "coin": "XMR",
-      "time": 1789077600028,
-      "usdc": "0.006849",
-      "id": "79aba6a8cc1050d4801b3c12"
-    },
-    {
-      "coin": "XMR",
-      "time": 1789081200007,
-      "usdc": "0.006834",
-      "id": "93b2eda158de4e4fda025775"
-    },
-    {
-      "coin": "XMR",
-      "time": 1789084800040,
-      "usdc": "0.006824",
-      "id": "4ee9d94cb2547347bbd2c8d0"
-    },
-    {
-      "coin": "XMR",
-      "time": 1789088400030,
-      "usdc": "0.006871",
-      "id": "c5243996e385b8f1c96062f3"
-    },
-    {
-      "coin": "XMR",
-      "time": 1789092000019,
-      "usdc": "0.006838",
-      "id": "490089aa8856b7d1e9bd8f13"
+      "opened_ms": 1789068766051,
+      "status": "closed",
+      "fill_ids": [
+        "XMR:1033358663198956",
+        "XMR:9653580401644",
+        "XMR:230502822223085",
+        "XMR:1062066830430507",
+        "XMR:521627013749023",
+        "XMR:517589021243003",
+        "XMR:83587528921693",
+        "XMR:985983431882649",
+        "XMR:1055023080434921",
+        "XMR:477358450343782"
+      ],
+      "closed_pnl": "7.739508",
+      "fees_usdc": "0.695620",
+      "fee_currency_complete": true,
+      "end_position": "0.000",
+      "closed_ms": 1789095180385,
+      "net_before_funding_usdc": "7.043888",
+      "holding_minutes": 440.2389
     }
   ],
-  "cashflows": [
-    {
-      "id": "562a68205de13705b3a1c99f",
-      "time": 1788962873445,
-      "type": "send",
-      "amount_usdc": "108.83",
-      "scope": "external_inflow_to_account",
-      "note": "API send event: this account is destination and not sender; 108.83 USDC received from another address, spot source to native destination, zero transfer fee. Source account ownership unknown; no counterparty retained."
-    }
-  ],
-  "imports": [
+  "realized_gross_usdc": "20.945758",
+  "fees_usdc": "1.191569",
+  "funding_cashflow_usdc": "0.042766",
+  "observed_net_trading_cashflow_usdc": "19.796955",
+  "cashflows": [],
+  "history_coverage": [
     {
       "source": "https://api.hyperliquid.xyz/info",
       "observed_at": "2026-09-10T02:33:21+00:00",
@@ -432,5 +320,7 @@
         "cashflows": 0
       }
     }
-  ]
+  ],
+  "balance_reconciliation": "not_established",
+  "note": "Observed fills are not necessarily a complete day. Cashflow is not equity change or closed-trade return. Funding is not allocated to episodes."
 }

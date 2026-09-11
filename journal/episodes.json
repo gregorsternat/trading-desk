@@ -32,5 +32,47 @@
     "closed_ms": 1788975273682,
     "net_before_funding_usdc": "-17.266256",
     "holding_minutes": 18.529733333333333
+  },
+  {
+    "coin": "TAO",
+    "opened_ms": 1789058111557,
+    "status": "closed",
+    "fill_ids": [
+      "TAO:286197809323720",
+      "TAO:414314407017759",
+      "TAO:644422314860402",
+      "TAO:1067383220171227"
+    ],
+    "closed_pnl": "13.20625",
+    "fees_usdc": "0.495949",
+    "fee_currency_complete": true,
+    "end_position": "0.000",
+    "closed_ms": 1789062864877,
+    "net_before_funding_usdc": "12.710301",
+    "holding_minutes": 79.222
+  },
+  {
+    "coin": "XMR",
+    "opened_ms": 1789068766051,
+    "status": "closed",
+    "fill_ids": [
+      "XMR:1033358663198956",
+      "XMR:9653580401644",
+      "XMR:230502822223085",
+      "XMR:1062066830430507",
+      "XMR:521627013749023",
+      "XMR:517589021243003",
+      "XMR:83587528921693",
+      "XMR:985983431882649",
+      "XMR:1055023080434921",
+      "XMR:477358450343782"
+    ],
+    "closed_pnl": "7.739508",
+    "fees_usdc": "0.695620",
+    "fee_currency_complete": true,
+    "end_position": "0.000",
+    "closed_ms": 1789095180385,
+    "net_before_funding_usdc": "7.043888",
+    "holding_minutes": 440.2389
   }
 ]

@@ -1,0 +1,59 @@
+{
+  "status": "partial",
+  "account_label": "main",
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "observed_at": "2026-09-10T19:33:32Z",
+  "balances_observed_at": "2026-09-10T19:33:32Z",
+  "positions_observed_at": "2026-09-10T19:33:32Z",
+  "open_orders_observed_at": "2026-09-10T19:33:32Z",
+  "account_mode": null,
+  "collateral": "USDC",
+  "equity_usdc": 112.91,
+  "available_to_trade_usdc": 0.12,
+  "balances_verified": false,
+  "positions_verified": true,
+  "open_orders_verified": false,
+  "available_includes_order_reservations": false,
+  "positions": [
+    {
+      "coin": "XMR",
+      "side": "short",
+      "size": 1.074,
+      "entry_price": 516.02,
+      "mark_price": 515.93,
+      "notional_usdc": 554.11,
+      "leverage": 5,
+      "margin_mode": "cross",
+      "margin_usdc": 110.84,
+      "liquidation_price_display": 564.56,
+      "unrealized_pnl_usdc": 0.10
+    }
+  ],
+  "open_orders": [
+    {
+      "coin": "XMR",
+      "role": "take_profit",
+      "trigger_price": 500.23,
+      "quantity": null,
+      "order_type": null,
+      "reduce_only": null
+    },
+    {
+      "coin": "XMR",
+      "role": "stop_loss",
+      "trigger_price": 523.10,
+      "quantity": null,
+      "order_type": null,
+      "reduce_only": null
+    }
+  ],
+  "committed_risk_usdc": null,
+  "committed_risk_verified": false,
+  "notes": [
+    "Read-only OpenMarket account panel showed one manually opened XMR short and two open orders. No order, margin, leverage or protection was changed by the analysis.",
+    "Balances and the dedicated Open Orders table were not reopened after the manual fill. The displayed account summary showed equity $112.91 and available $0.12, while the 5x ticket showed $1.86 of additional buying power; their scopes differ.",
+    "The position row displayed TP/SL 500.23/523.10, but child size, order type, trigger semantics and reduce-only state were not inspected, so protection is not marked verified.",
+    "Gross entry-to-stop loss is approximately $7.60 before fees, funding and slippage. Cross-margin combined-risk arithmetic is not supported by the isolated-position calculator."
+  ],
+  "access_status": "read_only_account_visible"
+}

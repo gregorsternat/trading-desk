@@ -1,0 +1,74 @@
+{
+  "status": "checked",
+  "checked_at": "2026-09-10T19:22:30Z",
+  "session_window": {
+    "start": "2026-09-10T19:21:50Z",
+    "end": "2026-09-10T22:21:50Z",
+    "display_timezone": "Asia/Shanghai",
+    "display_start": "2026-09-11T03:21:50+08:00",
+    "display_end": "2026-09-11T06:21:50+08:00"
+  },
+  "events": [],
+  "checked_sources": [
+    {
+      "owner": "U.S. Bureau of Labor Statistics",
+      "url": "https://www.bls.gov/schedule/2026/09_sched.htm",
+      "scope": "September 2026 release calendar; publication times are Eastern Time"
+    },
+    {
+      "owner": "Federal Reserve Board",
+      "url": "https://www.federalreserve.gov/newsevents/calendar.htm",
+      "scope": "September 10-11, 2026 calendar"
+    },
+    {
+      "owner": "U.S. Bureau of Economic Analysis",
+      "url": "https://www.bea.gov/news/schedule/",
+      "scope": "2026 release schedule"
+    },
+    {
+      "owner": "Hyperliquid",
+      "url": "https://hyperliquid.statuspage.io/",
+      "scope": "Current venue status and scheduled maintenance"
+    },
+    {
+      "owner": "Zcash Foundation",
+      "url": "https://zfnd.org/zcap-poll-now-open-nu7/",
+      "scope": "Current NU7 governance poll timing"
+    }
+  ],
+  "excluded": [
+    {
+      "item": "U.S. Producer Price Index for August 2026",
+      "publication_time": "2026-09-10T08:30:00-04:00",
+      "display_time": "2026-09-10T20:30:00+08:00",
+      "reason": "Published before the session window"
+    },
+    {
+      "item": "U.S. Consumer Price Index and Real Earnings for August 2026",
+      "publication_time": "2026-09-11T08:30:00-04:00",
+      "display_time": "2026-09-11T20:30:00+08:00",
+      "reason": "Scheduled well after the session window"
+    },
+    {
+      "item": "Federal Reserve H.15 and H.4.1 statistical releases",
+      "publication_times": [
+        "2026-09-10T16:15:00-04:00",
+        "2026-09-10T16:30:00-04:00"
+      ],
+      "display_times": [
+        "2026-09-11T04:15:00+08:00",
+        "2026-09-11T04:30:00+08:00"
+      ],
+      "reason": "Routine statistical publications; no supported session-level volatility catalyst"
+    },
+    {
+      "item": "Hyperliquid venue status",
+      "reason": "All systems operational; no incident or maintenance scheduled for the session"
+    },
+    {
+      "item": "Zcash NU7 ZCAP poll",
+      "event_time": "2026-09-14T19:00:00Z",
+      "reason": "Poll remains open and closes after the session; no session-timed result"
+    }
+  ]
+}

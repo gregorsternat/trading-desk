@@ -1,0 +1,73 @@
+{
+  "source": "https://openmarket.xyz/chart/FjCa6FS3",
+  "venue": "HYPERLIQUID.F PERP",
+  "coin": "XMR",
+  "observed_at": "2026-09-10T19:33:32Z",
+  "settings": {
+    "range_oscillator_overbought": 80,
+    "range_oscillator_midline": 50,
+    "other_settings": "Not changed. Price Action and Trend settings were not opened or assumed."
+  },
+  "observations": [
+    {
+      "timeframe": "1h",
+      "observed_at": "2026-09-10T19:31:29Z",
+      "displayed_ohlc": [515.64, 518.70, 515.64, 516.94],
+      "price_action": "No explicit current Price Action label in the legend ('-').",
+      "trend_signals": {
+        "adaptive_trail": 522.30,
+        "trail_buffer_edge": 517.06,
+        "interpretation": "Price was below the adaptive trail and marginally below the buffer edge: bearish overhead / transition, not a confirmed fresh short trigger."
+      },
+      "oscillator": {
+        "range_money_flow": 52.11,
+        "flow_ceiling": 54.44,
+        "flow_floor": 35.62,
+        "flow_surge": 50.00,
+        "interpretation": "Slightly above the midline; positive but not extreme."
+      }
+    },
+    {
+      "timeframe": "15m",
+      "observed_at": "2026-09-10T19:33:03Z",
+      "displayed_ohlc": [517.42, 517.42, 515.19, 516.10],
+      "price_action": "No explicit current Price Action label in the legend ('-'). Price remained well above the displayed trend trail after the session impulse.",
+      "trend_signals": {
+        "adaptive_trail": 499.99,
+        "trail_buffer_edge": 502.79,
+        "interpretation": "Bullish 15-minute regime; current price remained far above both levels."
+      },
+      "oscillator": {
+        "range_money_flow": 54.47,
+        "flow_ceiling": 58.76,
+        "flow_floor": 44.65,
+        "flow_surge": 50.00,
+        "interpretation": "Above the midline but below the adaptive ceiling."
+      }
+    },
+    {
+      "timeframe": "5m",
+      "observed_at": "2026-09-10T19:33:32Z",
+      "displayed_price": 515.99,
+      "visible_swing_low": 497.46,
+      "visible_swing_high": 518.70,
+      "price_action": "Visible bullish BOS sequence into 518.70 after the 497.46 low. No confirmed bearish CHoCH was visible at the top during the observation.",
+      "trend_signals": {
+        "legend_value": 0.00,
+        "interpretation": "No actionable fresh Trend entry signal was asserted from the displayed 0.00 legend value."
+      },
+      "oscillator": {
+        "range_money_flow": 70.46,
+        "flow_ceiling": 66.64,
+        "flow_floor": 48.60,
+        "flow_surge": 60.46,
+        "interpretation": "Bullish momentum was stretched above the adaptive ceiling; this can persist in an impulse and is not a standalone short signal."
+      }
+    }
+  ],
+  "limitations": [
+    "The chart was live and on the exact XMR Hyperliquid perpetual, but the latest displayed bar values were developing rather than isolated completed-bar crosshair observations.",
+    "Classic Range Money Flow is price-derived; no real taker-flow or CVD claim is made.",
+    "OpenMarket toolkit outputs are correlated price transforms and are not counted as independent votes."
+  ]
+}

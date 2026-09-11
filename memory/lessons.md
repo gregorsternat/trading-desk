@@ -18,3 +18,5 @@ Add an entry only when it changes a future decision:
 `ID | status (hypothesis / repeated observation / retired) | concrete claim | supporting review + fill IDs | contrary evidence | comparable sample count | next test | date`
 
 Avoid win-rate claims on incomplete episodes. Evaluate net R only with known initial risk, costs, regime and exposure. A valid losing trade can support a sound process; a profitable rule violation cannot validate the violation. Keep this file short and link detailed reviews.
+
+`PREPLAN-001 | repeated observation | Profitable or losing fills cannot be evaluated in net R when invalidation, intended risk and exit logic are not recorded before entry. | journal/reviews/2026-09-09.md and journal/reviews/2026-09-11.md; four completed INJ, PUMP, TAO and XMR episodes | XMR had leverage and TP/SL captured shortly after entry, but not verified pre-fill protection or all-in initial risk | 4 completed episodes | Before the next manual order, save a timestamped plan with invalidation, all-in risk and intended exit reason; compare the resulting episode without retrofitting. | 2026-09-11`
